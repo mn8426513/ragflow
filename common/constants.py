@@ -14,19 +14,32 @@
 #  limitations under the License.
 #
 
+# =============================================================================
+# RAGFlow 全局常量定义模块 (Global Constants)
+# =============================================================================
+# 定义整个项目中使用的所有枚举类型、常量值和基础数据结构
+# 包含: 服务配置、返回码、LLM类型、文件类型、存储类型等
+# =============================================================================
+
 import os
 from enum import Enum, IntEnum
 from enum import StrEnum
 
+# 服务配置文件名 (Service configuration file name)
 SERVICE_CONF = "service_conf.yaml"
+# RAGFlow 服务名称标识 (RAGFlow service name identifier)
 RAG_FLOW_SERVICE_NAME = "ragflow"
+# 沙箱产物存储桶和过期天数 (Sandbox artifact storage bucket and expiration)
 SANDBOX_ARTIFACT_BUCKET = os.environ.get("SANDBOX_ARTIFACT_BUCKET", "sandbox-artifacts")
 SANDBOX_ARTIFACT_EXPIRE_DAYS = int(os.environ.get("SANDBOX_ARTIFACT_EXPIRE_DAYS", "7"))
 
 
 class CustomEnum(Enum):
+    """自定义枚举基类 - 提供值校验和列表获取方法 (Custom enum base with validation and listing)"""
+
     @classmethod
     def valid(cls, value):
+        """检查给定值是否为有效的枚举值 (Check if value is a valid enum member)"""
         try:
             cls(value)
             return True
@@ -35,14 +48,17 @@ class CustomEnum(Enum):
 
     @classmethod
     def values(cls):
+        """获取所有枚举值列表 (Get list of all enum values)"""
         return [member.value for member in cls.__members__.values()]
 
     @classmethod
     def names(cls):
+        """获取所有枚举名称列表 (Get list of all enum names)"""
         return [member.name for member in cls.__members__.values()]
 
 
 class RetCode(IntEnum, CustomEnum):
+    """API 返回码枚举 (API Return Code Enum)"""
     SUCCESS = 0
     NOT_EFFECTIVE = 10
     EXCEPTION_ERROR = 100

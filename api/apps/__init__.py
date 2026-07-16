@@ -13,6 +13,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
+# =============================================================================
+# RAGFlow API 应用工厂模块 (Quart Application Factory)
+# =============================================================================
+# 本模块是 RAGFlow API 服务器的核心，负责:
+#   1. 创建和配置 Quart (异步 Flask) 应用实例
+#   2. 配置认证系统 (JWT + API Token + Session 三种模式)
+#   3. 自动发现和注册 Blueprint 路由 (RESTful API / Legacy API / SDK API)
+#   4. 配置 CORS、Session、错误处理等中间件
+#
+# URL 路由规则:
+#   - RESTful APIs (api/apps/restful_apis/*.py)  → /api/v1/
+#   - Legacy APIs (api/apps/*_app.py)             → /v1/<page_name>/
+#   - SDK APIs (api/apps/sdk/*.py)                → /v1/
+# =============================================================================
+
 import logging
 import os
 import sys
@@ -37,6 +53,7 @@ from api.constants import API_VERSION
 from common.exceptions import ModelException
 from common.misc_utils import get_uuid
 
+# 在模块加载时初始化全局设置 (Initialize global settings at module import time)
 settings.init_settings()
 
 __all__ = ["app"]

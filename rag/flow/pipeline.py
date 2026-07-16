@@ -13,6 +13,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
+# =============================================================================
+# 文档摄入管道 (Document Ingestion Pipeline)
+# =============================================================================
+# Pipeline 继承自 agent.canvas.Graph，实现文档处理的有向无环图 (DAG)。
+# 这是新一代管道架构，将文档处理分解为可组合的处理组件:
+#
+#   标准流程: File(获取文件) → Parser(解析文档) → Chunker(分块)
+#            → Extractor(元数据提取) → Tokenizer(分词) → Indexer(索引)
+#
+#   组件之间通过 JSON DSL 定义依赖关系和执行顺序。
+#   每个组件从上游获取输入，处理后向下游输出结果。
+#
+#   callback() 方法通过 Redis 实时推送处理进度到前端。
+# =============================================================================
+
 import asyncio
 import datetime
 import json
@@ -26,6 +42,13 @@ from rag.utils.redis_conn import REDIS_CONN
 
 
 class Pipeline(Graph):
+    """文档摄入管道 - 继承 Graph 实现文档处理 DAG
+
+    将文档处理分解为: File → Parser → Chunker → Extractor → Tokenizer
+    每个组件是独立的处理阶段，通过 DSL 定义连接关系。
+    Pipeline extends Graph to implement the document processing DAG.
+    """
+
     def __init__(self, dsl: str|dict, tenant_id=None, doc_id=None, task_id=None, flow_id=None):
         if isinstance(dsl, dict):
             dsl = json.dumps(dsl, ensure_ascii=False)

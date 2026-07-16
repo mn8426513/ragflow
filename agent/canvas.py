@@ -13,6 +13,29 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
+# =============================================================================
+# Agent 执行引擎 - DAG 画布 (Agent Execution Engine - DAG Canvas)
+# =============================================================================
+# 本模块实现了 Agent 系统的核心执行引擎，包含两个关键类:
+#
+#   Graph (图/有向无环图):
+#     - 将 JSON DSL 解析为内存中的 DAG (有向无环图) 组件图
+#     - 管理组件间的上游/下游依赖关系和拓扑排序路径
+#     - 解析变量引用 (如 {cpn_id@var_nm}, {sys.query})
+#     - 管理全局变量和代理变量 (globals, variables)
+#
+#   Canvas (画布, 继承 Graph):
+#     - 按拓扑顺序执行 DAG 组件
+#     - 支持并发执行 (ThreadPoolExecutor + asyncio.gather)
+#     - 处理控制流组件: Categorize (分类), Switch (条件分支),
+#       Iteration (迭代循环), Loop (循环), ExitLoop (退出循环)
+#     - 流式输出: LLM 节点生成的内容实时流式传输到 Message 节点
+#     - 生成 SSE 事件: workflow_started, node_started, message,
+#       node_finished, workflow_finished, user_inputs
+#     - 管理检索引用、对话历史和记忆
+# =============================================================================
+
 import asyncio
 import base64
 import datetime
@@ -41,43 +64,38 @@ from rag.utils.redis_conn import REDIS_CONN
 from rag.utils.tts_cache import synthesize_with_cache
 
 class Graph:
-    """
-        dsl = {
-            "components": {
-                "begin": {
-                    "obj":{
-                        "component_name": "Begin",
-                        "params": {},
-                    },
-                    "downstream": ["answer_0"],
-                    "upstream": [],
+    """有向无环图 (DAG) - Agent 工作流的底层数据结构
+
+    将 JSON DSL (领域特定语言) 解析为组件图，管理:
+    - 组件实例化与参数校验
+    - 拓扑排序路径管理
+    - 变量引用解析 ({cpn_id@var_name} 和 {sys.xxx})
+    - 全局变量和代理环境变量
+
+    DSL 结构示例:
+    {
+        "components": {           # 组件字典，键为组件 ID
+            "begin": {
+                "obj": {
+                    "component_name": "Begin",
+                    "params": {},
                 },
-                "retrieval_0": {
-                    "obj": {
-                        "component_name": "Retrieval",
-                        "params": {}
-                    },
-                    "downstream": ["generate_0"],
-                    "upstream": ["answer_0"],
-                },
-                "generate_0": {
-                    "obj": {
-                        "component_name": "Generate",
-                        "params": {}
-                    },
-                    "downstream": ["answer_0"],
-                    "upstream": ["retrieval_0"],
-                }
+                "downstream": ["answer_0"],  # 下游节点
+                "upstream": [],              # 上游节点
             },
-            "history": [],
-            "path": ["begin"],
-            "retrieval": {"chunks": [], "doc_aggs": []},
-            "globals": {
-                "sys.query": "",
-                "sys.user_id": tenant_id,
-                "sys.conversation_turns": 0,
-                "sys.files": []
-            }
+            ...
+        },
+        "history": [],             # 对话历史
+        "path": ["begin"],         # 执行路径 (拓扑排序)
+        "retrieval": {"chunks": [], "doc_aggs": []},  # 检索结果
+        "globals": {               # 全局变量
+            "sys.query": "",       # 系统查询文本
+            "sys.user_id": tenant_id,
+            "sys.conversation_turns": 0,
+            "sys.files": []
+        }
+    }
+    """
         }
         """
 

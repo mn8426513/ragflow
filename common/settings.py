@@ -13,6 +13,18 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
+# =============================================================================
+# RAGFlow 全局设置模块 (Global Settings Module)
+# =============================================================================
+# 本模块负责:
+#   1. 从 service_conf.yaml 和环境变量加载所有配置
+#   2. 初始化所有存储连接 (Elasticsearch / Infinity / OceanBase / OpenSearch)
+#   3. 初始化对象存储连接 (MinIO / S3 / OSS / GCS / Azure Blob)
+#   4. 初始化 Redis 连接和搜索模块
+#   5. 管理 LLM 默认配置和 API 密钥
+# =============================================================================
+
 import os
 import json
 import secrets
@@ -25,11 +37,13 @@ from common.config_utils import get_base_config, decrypt_database_config
 from common.misc_utils import pip_install_torch
 from common.constants import SVR_QUEUE_NAME, Storage
 
+# 导入向量/全文搜索引擎连接器 (Vector/Full-text Search Engine Connectors)
 import rag.utils
 import rag.utils.es_conn
 import rag.utils.infinity_conn
 import rag.utils.ob_conn
 import rag.utils.opensearch_conn
+# 导入对象存储连接器 (Object Storage Connectors)
 from rag.utils.azure_sas_conn import RAGFlowAzureSasBlob
 from rag.utils.azure_spn_conn import RAGFlowAzureSpnBlob
 from rag.utils.gcs_conn import RAGFlowGCS
@@ -41,12 +55,15 @@ from rag.utils.oss_conn import RAGFlowOSS
 
 from rag.nlp import search
 
+# 导入记忆模块的连接器 (Memory Module Connectors)
 import memory.utils.es_conn as memory_es_conn
 import memory.utils.infinity_conn as memory_infinity_conn
 import memory.utils.ob_conn as memory_ob_conn
 
+# 默认时区 (Default timezone)
 TIMEZONE = os.getenv("TZ", "Asia/Shanghai")
 
+# 全局 LLM 配置变量 (Global LLM Configuration Variables)
 LLM = None
 LLM_FACTORY = None
 LLM_BASE_URL = None
