@@ -49,7 +49,9 @@ def rewrite_yaml_conf(conf_path, config):
 
 def conf_realpath(conf_name):
     conf_path = f"conf/{conf_name}"
-    return os.path.join(get_project_base_directory(), conf_path)
+    path = os.path.join(get_project_base_directory(), conf_path)
+    logging.debug(f"conf_path: {path}")
+    return path
 
 
 def read_config(conf_name=SERVICE_CONF):

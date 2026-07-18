@@ -20,6 +20,7 @@ from typing import Set
 from api.apps import current_user, login_required
 from api.db import UserTenantRole
 from api.db.db_models import UserTenant
+from api.db.services import tenant_model_provider_service
 from api.db.services.user_service import UserService, UserTenantService
 from api.utils.api_utils import (
     get_data_error_result,
@@ -33,6 +34,8 @@ from common import settings
 from common.constants import RetCode, StatusEnum
 from common.misc_utils import get_uuid
 from common.time_utils import delta_seconds
+
+from api.db.services.tenant_model_provider_service import TenantModelProviderService
 
 # Keeps strong references to fire-and-forget tasks so they are not GC'd before completion.
 _background_tasks: Set[asyncio.Task] = set()
@@ -94,6 +97,11 @@ async def create(tenant_id):
         role=UserTenantRole.INVITE,
         status=StatusEnum.VALID.value,
     )
+
+    tenant_model_provider = TenantModelProviderService.list_providers_by_tenant_id_and_create_user_id(tenant_id=current_user.id, create_user_id=current_user.id)
+
+    logging.info(f"tenant_model_provider: {tenant_model_provider}")
+
 
     try:
         user_name = ""

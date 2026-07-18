@@ -156,6 +156,31 @@ def add_provider(tenant_id: str, provider_name: str):
     )
     return True, "success"
 
+def add_provider_for_invite_user(tenant_id: str, provider_name: str):
+    """
+    Add a provider (factory) for a tenant.
+
+    :param tenant_id: tenant ID
+    :param provider_name: provider/factory name
+    :return: (success, result_or_error_message)
+    """
+    if not FACTORY_LLM_INFOS:
+        return False, "No providers found"
+    # Check if factory is allowed
+    allowed_factories = [f["name"] for f in FACTORY_LLM_INFOS]
+    if provider_name not in allowed_factories:
+        return False, f"Provider '{provider_name}' is not allowed"
+
+    existing = TenantModelProviderService.get_by_tenant_id_and_provider_name(tenant_id, provider_name)
+    if existing:
+        return False, f"Provider {provider_name} already exists"
+
+    TenantModelProviderService.insert(
+        tenant_id=tenant_id,
+        provider_name=provider_name
+    )
+    return True, "success"
+
 
 def delete_provider(tenant_id: str, provider_name: str):
     """

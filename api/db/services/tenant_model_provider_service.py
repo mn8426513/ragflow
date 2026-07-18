@@ -50,3 +50,9 @@ class TenantModelProviderService(CommonService):
     @DB.connection_context()
     def list_provider_names_by_tenant_id(cls, tenant_id):
         return [row.provider_name for row in cls.model.select(cls.model.provider_name).where(cls.model.tenant_id == tenant_id)]
+
+    @classmethod
+    @DB.connection_context()
+    def list_providers_by_tenant_id_and_create_user_id(cls, tenant_id, create_user_id):
+        return [cls.model.select(cls.model.id,cls.model.create_time,cls.model.create_date,cls.model.update_time,cls.model.update_date,cls.model.provider_name,cls.model.tenant_id,cls.model.create_user_id).where(
+            cls.model.tenant_id == tenant_id, cls.model.create_user_id == create_user_id)]
