@@ -20,8 +20,7 @@ from typing import Set
 from api.apps import current_user, login_required
 from api.db import UserTenantRole
 from api.db.db_models import UserTenant
-from api.db.services import tenant_model_provider_service
-from api.db.services.user_service import UserService, UserTenantService
+from api.db.services.user_service import UserService, UserTenantService, TenantService
 from api.utils.api_utils import (
     get_data_error_result,
     get_json_result,
@@ -98,11 +97,6 @@ async def create(tenant_id):
         status=StatusEnum.VALID.value,
     )
 
-    tenant_model_provider = TenantModelProviderService.list_providers_by_tenant_id_and_create_user_id(tenant_id=current_user.id, create_user_id=current_user.id)
-
-    logging.info(f"tenant_model_provider: {tenant_model_provider}")
-
-
     try:
         user_name = ""
         _, user = UserService.get_by_id(current_user.id)
@@ -178,10 +172,47 @@ def tenant_list():
 @login_required
 def agree(tenant_id):
     try:
+        # 查询被邀请记录，获取邀请人信息 (Query invite record to get inviter info)
+        invite_records = UserTenantService.query(
+            user_id=current_user.id,
+            tenant_id=tenant_id,
+            role=UserTenantRole.INVITE,
+        )
+        invited_by = None
+        if invite_records:
+            invited_by = invite_records[0].invited_by
+
         UserTenantService.filter_update(
             [UserTenant.tenant_id == tenant_id, UserTenant.user_id == current_user.id],
             {"role": UserTenantRole.NORMAL},
         )
+
+        # 查询邀请人配置的模型实例
+        tenant = TenantService.get_info_by_user_id(tenant_id)
+        logging.info(f"查询出来的持有者的tenant  {tenant}")
+        # 更新到被邀请人的模型实例
+        TenantService.update_tenant_by_user_id(current_user.id, tenant[0])
+
+        # 将邀请人的模型配置同步给被邀请用户 (Sync inviter's model providers to invitee)
+        if invited_by:
+            try:
+                sync_result = TenantModelProviderService.sync_providers_to_user(
+                    tenant_id=tenant_id,
+                    from_user_id=tenant_id,
+                    to_user_id=current_user.id,
+                )
+                logging.info(
+                    "Synced model providers from inviter %s to user %s in tenant %s: %s",
+                    invited_by, current_user.id, tenant_id, sync_result,
+                )
+
+
+            except Exception:
+                logging.exception(
+                    "Failed to sync model providers from inviter %s to user %s in tenant %s",
+                    invited_by, current_user.id, tenant_id,
+                )
+
         return get_json_result(data=True)
     except Exception as exc:
         return server_error_response(exc)

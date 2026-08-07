@@ -152,7 +152,8 @@ def add_provider(tenant_id: str, provider_name: str):
 
     TenantModelProviderService.insert(
         tenant_id=tenant_id,
-        provider_name=provider_name
+        provider_name=provider_name,
+        create_user_id=tenant_id
     )
     return True, "success"
 

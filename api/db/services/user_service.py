@@ -233,6 +233,38 @@ class TenantService(CommonService):
         objs = cls.model.select().orwhere(cls.model.tenant_llm_id.is_null(), cls.model.tenant_embd_id.is_null(), cls.model.tenant_asr_id.is_null(), cls.model.tenant_tts_id.is_null(), cls.model.tenant_rerank_id.is_null(), cls.model.tenant_img2txt_id.is_null())
         return list(objs)
 
+    @classmethod
+    @DB.connection_context()
+    def get_info_by_user_id(cls, user_id):
+        fields = [
+            cls.model.id.alias("tenant_id"),
+            cls.model.name,
+            cls.model.llm_id,
+            cls.model.embd_id,
+            cls.model.rerank_id,
+            cls.model.asr_id,
+            cls.model.img2txt_id,
+            cls.model.tts_id,
+            cls.model.ocr_id,
+            cls.model.parser_ids,
+            UserTenant.role]
+        return list(cls.model.select(*fields).join(UserTenant,on=((cls.model.id == UserTenant.tenant_id) & (UserTenant.user_id == user_id) & (UserTenant.status == StatusEnum.VALID.value) & (UserTenant.role == UserTenantRole.OWNER))).where(cls.model.status == StatusEnum.VALID.value and cls.model.id == user_id).dicts())
+
+    @classmethod
+    @DB.connection_context()
+    def update_tenant_by_user_id(cls, user_id, tenant_dict):
+        with DB.atomic():
+            if tenant_dict:
+               update_dict = {
+                "llm_id": tenant_dict["llm_id"],
+                "embd_id": tenant_dict["embd_id"],
+                "asr_id": tenant_dict["asr_id"],
+                "img2txt_id": tenant_dict["img2txt_id"],
+                "rerank_id": tenant_dict["rerank_id"],
+                "tts_id": tenant_dict["tts_id"],
+                "parser_ids": tenant_dict["parser_ids"],
+            }
+            cls.model.update(update_dict).where(cls.model.id == user_id).execute()
 
 class UserTenantService(CommonService):
     """Service class for managing user-tenant relationship operations.
