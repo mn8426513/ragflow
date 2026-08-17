@@ -38,7 +38,8 @@ dependencies = [
     "duckduckgo-search>=7.2.0,<8.0.0",
     "nltk",
     "huggingface-hub",
-   # "editdistance==0.8.1",
+    # editdistance==0.8.1 has no Windows wheels for Python 3.13; rapidfuzz provides the same Levenshtein distance.
+    "rapidfuzz==3.14.5",
     "elasticsearch-dsl==8.12.0",
     "exceptiongroup>=1.3.0,<2.0.0",
     "feedparser>=6.0.11,<7.0.0",
