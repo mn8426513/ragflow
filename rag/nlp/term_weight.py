@@ -83,12 +83,15 @@ class Dealer:
             return res
 
         fnm = os.path.join(get_project_base_directory(), "rag/res")
+        logging.info(f"分词权重{os.path.join(get_project_base_directory(), "rag/res")}")
+        logging.info(f"分词权重{os.path.join(get_project_base_directory(), "rag/res")}")
+        logging.info(f"ner.json路径 {os.path.join(fnm, "ner.json")}")
         self.ne, self.df = {}, {}
         try:
-            with open(os.path.join(fnm, "ner.json"), "r") as f:
+            with open(os.path.join(fnm, "ner.json"), "r",encoding="utf-8") as f:
                 self.ne = json.load(f)
         except Exception:
-            logging.warning("Load ner.json FAIL!")
+            logging.warning(f"Load ner.json FAIL!")
         try:
             self.df = load_dict(os.path.join(fnm, "term.freq"))
         except Exception:

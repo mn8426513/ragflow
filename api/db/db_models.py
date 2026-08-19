@@ -1834,11 +1834,13 @@ class TenantModelProvider(DataBaseModel):
     id = CharField(max_length=32, primary_key=True)
     provider_name = CharField(max_length=128, null=False, index=False, help_text="LLM provider name")
     tenant_id = CharField(max_length=32, null=False, index=True)
+    create_user_id = CharField(max_length=32, null=False, index=True)
 
     class Meta:
         db_table = "tenant_model_provider"
-        indexes = ((("tenant_id", "provider_name"), True),)
-
+        indexes = (
+            (("tenant_id", "provider_name", "create_user_id"), True),
+        )
 
 class TenantModelInstance(DataBaseModel):
     id = CharField(max_length=32, primary_key=True)
