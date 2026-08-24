@@ -22,6 +22,7 @@ export default {
       stop: 'Stop',
       resume: 'Resume',
       namePlaceholder: 'Please input name',
+      nameSlashError: 'Name cannot contain "/"',
       descriptionPlaceholder: 'Enter description',
       next: 'Next',
       create: 'Create',
@@ -1119,6 +1120,8 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       thinkingLevelHighDescription: 'Deep reasoning',
       thinkingLevelUltra: 'Ultra',
       thinkingLevelUltraDescription: 'Maximum cognitive effort',
+      thinkingLevelAgentic: 'Agentic',
+      thinkingLevelAgenticDescription: 'ReAct agent over your knowledge base',
       thinkingTip:
         'Only controls thinking mode for official Qwen, Kimi, and GLM model providers. System default disables Qwen thinking to avoid long-running tasks.',
       quote: 'Show quote',
@@ -1206,6 +1209,9 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       serplyApiKeyTip:
         'When Serply is selected, its web search results supplement dataset retrieval.',
       serplyApiKeyMessage: 'Please enter your Serply API Key',
+      youcomApiKeyTip:
+        'Optional. You.com works without a key on its rate-limited endpoint; add a key to lift those limits.',
+      youcomApiKeyMessage: 'Optional — leave blank to use the free tier',
       tavilyApiKeyHelp: 'How to get it?',
       crossLanguage: 'Cross-language search',
       crossLanguagePlaceholder: 'Select value',
@@ -3355,7 +3361,7 @@ Task
 Extract the most important keywords/phrases of a given piece of text content.
 
 Requirements
-- Summarize the text content, and give the top 5 important keywords/phrases.
+- Summarize the text content, and give the top {{ topn }} important keywords/phrases.
 - The keywords MUST be in the same language as the given piece of text content.
 - The keywords are delimited by ENGLISH COMMA.
 - Output keywords ONLY.`,
@@ -3363,10 +3369,10 @@ Requirements
 You are a text analyzer.
 
 Task
-Propose 3 questions about a given piece of text content.
+Propose {{ topn }} questions about a given piece of text content.
 
 Requirements
-- Understand and summarize the text content, and propose the top 3 important questions.
+- Understand and summarize the text content, and propose the top {{ topn }} important questions.
 - The questions SHOULD NOT have overlapping meanings.
 - The questions SHOULD cover the main content of the text as much as possible.
 - The questions MUST be in the same language as the given piece of text content.
