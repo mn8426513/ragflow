@@ -184,8 +184,8 @@ class RoleService(CommonService):
                 ]
                 logging.info(f"=========rows{rows}")
                 for row in rows:
-                    logging.info(f"=========singleRow{row}")
                     if not RolePermission.get_or_none(**row):
+                        logging.info(f"=========singleRow{row}")
                         RolePermission.insert(**row)
 
     @classmethod
