@@ -53,6 +53,17 @@ def _insert_and_get(service_cls, **kwargs):
     return service_cls.get_or_none(id=obj_id)
 
 
+def _create_with_id(model_cls, **kwargs):
+    """Create a row with an explicit UUID id.
+
+    Models using a ``CharField`` primary key do not auto-generate ids, so the
+    id must be set before ``Model.create`` executes.
+    """
+    if "id" not in kwargs or not kwargs["id"]:
+        kwargs["id"] = get_uuid()
+    return model_cls.create(**kwargs)
+
+
 class DepartmentService(CommonService):
     model = Department
 
@@ -150,7 +161,7 @@ class DepartmentService(CommonService):
                     if exists.status != StatusEnum.VALID.value:
                         UserDepartment.update({"status": StatusEnum.VALID.value, "update_time": current_timestamp(), "update_date": datetime_format(datetime.now())}).where(UserDepartment.id == exists.id).execute()
                     continue
-                UserDepartment.create(user_id=user_id, department_id=department_id)
+                _create_with_id(UserDepartment, user_id=user_id, department_id=department_id)
 
     @classmethod
     @DB.connection_context()
@@ -186,7 +197,7 @@ class RoleService(CommonService):
                 for row in rows:
                     if not RolePermission.get_or_none(**row):
                         logging.info(f"=========singleRow{row}")
-                        RolePermission.create(**row)
+                        _create_with_id(RolePermission, **row)
 
     @classmethod
     @DB.connection_context()
@@ -260,7 +271,7 @@ class RoleService(CommonService):
                 for action, enabled in (actions or {}).items():
                     if action not in PERMISSION_ACTIONS or not enabled:
                         continue
-                    RolePermission.create(role_id=role_id, resource=resource, action=action)
+                    _create_with_id(RolePermission, role_id=role_id, resource=resource, action=action)
 
     @classmethod
     @DB.connection_context()
@@ -274,7 +285,7 @@ class RoleService(CommonService):
             if action not in PERMISSION_ACTIONS:
                 continue
             if not RolePermission.get_or_none(role_id=role.id, resource=resource, action=action, status=StatusEnum.VALID.value):
-                RolePermission.create(role_id=role.id, resource=resource, action=action)
+                _create_with_id(RolePermission, role_id=role.id, resource=resource, action=action)
 
     @classmethod
     @DB.connection_context()
@@ -301,7 +312,7 @@ class RoleService(CommonService):
             raise LookupError(f"Role '{role_name}' not found")
         with DB.atomic():
             UserRole.delete().where(UserRole.user_id == user_id).execute()
-            UserRole.create(user_id=user_id, role_id=role.id)
+            _create_with_id(UserRole, user_id=user_id, role_id=role.id)
 
     @classmethod
     @DB.connection_context()
@@ -343,7 +354,7 @@ class KnowledgebaseACLService(CommonService):
                     raise ValueError(f"Unsupported permission '{permission}'")
                 if not subject_id:
                     continue
-                cls.model.create(kb_id=kb_id, subject_type=subject_type, subject_id=subject_id, permission=permission, created_by=created_by)
+                _create_with_id(cls.model, kb_id=kb_id, subject_type=subject_type, subject_id=subject_id, permission=permission, created_by=created_by)
 
     @classmethod
     @DB.connection_context()
