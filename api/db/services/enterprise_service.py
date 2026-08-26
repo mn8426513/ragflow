@@ -34,10 +34,23 @@ from api.db.db_models import (
 from api.db.services.common_service import CommonService
 from api.db.services.user_service import TenantService
 from common.constants import StatusEnum
+from common.misc_utils import get_uuid
 from common.time_utils import current_timestamp, datetime_format
 
 RESOURCE_TYPES = ["dataset", "chat", "agent", "search", "file", "team", "memory"]
 PERMISSION_ACTIONS = ["enable", "read", "write", "share"]
+
+
+def _insert_and_get(service_cls, **kwargs):
+    """Insert a row and return the persisted model instance.
+
+    ``CommonService.insert`` returns the row count, not the model, so services
+    that need the inserted row query it back by its generated id.
+    """
+    obj_id = kwargs.get("id") or get_uuid()
+    kwargs["id"] = obj_id
+    service_cls.insert(**kwargs)
+    return service_cls.get_or_none(id=obj_id)
 
 
 class DepartmentService(CommonService):
@@ -59,7 +72,8 @@ class DepartmentService(CommonService):
             raise ValueError("Department name is too long")
         if cls.get_or_none(name=name, status=StatusEnum.VALID.value):
             raise ValueError(f"Department '{name}' already exists")
-        obj = cls.insert(
+        obj = _insert_and_get(
+            cls,
             name=name,
             parent_id=parent_id or None,
             description=description or "",
@@ -160,7 +174,7 @@ class RoleService(CommonService):
         for name, description, resources in defaults:
             role = cls.get_or_none(role_name=name)
             if not role:
-                role = cls.insert(role_name=name, description=description, role_type=RoleType.BUILTIN.value)
+                role = _insert_and_get(cls, role_name=name, description=description, role_type=RoleType.BUILTIN.value)
             if not RolePermission.select().where(RolePermission.role_id == role.id).count():
                 actions = ["enable", "read", "write", "share"] if name == "admin" else ["enable", "read"]
                 rows = [
@@ -186,7 +200,7 @@ class RoleService(CommonService):
             raise ValueError("Role name is required")
         if cls.get_or_none(role_name=role_name, status=StatusEnum.VALID.value):
             raise ValueError(f"Role '{role_name}' already exists")
-        role = cls.insert(role_name=role_name, description=description or "", role_type=RoleType.CUSTOM.value)
+        role = _insert_and_get(cls, role_name=role_name, description=description or "", role_type=RoleType.CUSTOM.value)
         return role.to_dict()
 
     @classmethod
@@ -461,7 +475,8 @@ class WhitelistService(CommonService):
             if existing.status == StatusEnum.INVALID.value:
                 cls.model.update({"status": StatusEnum.VALID.value, "update_time": current_timestamp(), "update_date": datetime_format(datetime.now())}).where(cls.model.id == existing.id).execute()
             return cls.get_or_none(id=existing.id).to_dict()
-        return cls.insert(email=email, created_by=created_by).to_dict()
+        obj = Whitelist.create(email=email, created_by=created_by)
+        return obj.to_dict()
 
     @classmethod
     @DB.connection_context()
