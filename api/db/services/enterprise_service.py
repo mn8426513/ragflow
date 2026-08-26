@@ -150,7 +150,7 @@ class DepartmentService(CommonService):
                     if exists.status != StatusEnum.VALID.value:
                         UserDepartment.update({"status": StatusEnum.VALID.value, "update_time": current_timestamp(), "update_date": datetime_format(datetime.now())}).where(UserDepartment.id == exists.id).execute()
                     continue
-                UserDepartment.insert(user_id=user_id, department_id=department_id)
+                UserDepartment.create(user_id=user_id, department_id=department_id)
 
     @classmethod
     @DB.connection_context()
@@ -186,7 +186,7 @@ class RoleService(CommonService):
                 for row in rows:
                     if not RolePermission.get_or_none(**row):
                         logging.info(f"=========singleRow{row}")
-                        RolePermission.insert(**row)
+                        RolePermission.create(**row)
 
     @classmethod
     @DB.connection_context()
@@ -260,7 +260,7 @@ class RoleService(CommonService):
                 for action, enabled in (actions or {}).items():
                     if action not in PERMISSION_ACTIONS or not enabled:
                         continue
-                    RolePermission.insert(role_id=role_id, resource=resource, action=action)
+                    RolePermission.create(role_id=role_id, resource=resource, action=action)
 
     @classmethod
     @DB.connection_context()
@@ -274,7 +274,7 @@ class RoleService(CommonService):
             if action not in PERMISSION_ACTIONS:
                 continue
             if not RolePermission.get_or_none(role_id=role.id, resource=resource, action=action, status=StatusEnum.VALID.value):
-                RolePermission.insert(role_id=role.id, resource=resource, action=action)
+                RolePermission.create(role_id=role.id, resource=resource, action=action)
 
     @classmethod
     @DB.connection_context()
@@ -301,7 +301,7 @@ class RoleService(CommonService):
             raise LookupError(f"Role '{role_name}' not found")
         with DB.atomic():
             UserRole.delete().where(UserRole.user_id == user_id).execute()
-            UserRole.insert(user_id=user_id, role_id=role.id)
+            UserRole.create(user_id=user_id, role_id=role.id)
 
     @classmethod
     @DB.connection_context()
@@ -343,7 +343,7 @@ class KnowledgebaseACLService(CommonService):
                     raise ValueError(f"Unsupported permission '{permission}'")
                 if not subject_id:
                     continue
-                cls.model.insert(kb_id=kb_id, subject_type=subject_type, subject_id=subject_id, permission=permission, created_by=created_by)
+                cls.model.create(kb_id=kb_id, subject_type=subject_type, subject_id=subject_id, permission=permission, created_by=created_by)
 
     @classmethod
     @DB.connection_context()
@@ -525,7 +525,7 @@ def _set_setting_json(name: str, value: Any, source: str = "enterprise") -> None
     if row:
         SystemSettings.update({"value": payload, "update_time": current_timestamp(), "update_date": datetime_format(datetime.now())}).where(SystemSettings.name == name).execute()
     else:
-        SystemSettings.insert(name=name, source=source, data_type="json", value=payload, create_time=current_timestamp(), create_date=datetime_format(datetime.now()), update_time=current_timestamp(), update_date=datetime_format(datetime.now()))
+        SystemSettings.create(name=name, source=source, data_type="json", value=payload, create_time=current_timestamp(), create_date=datetime_format(datetime.now()), update_time=current_timestamp(), update_date=datetime_format(datetime.now()))
 
 
 def get_security_settings() -> dict[str, Any]:
