@@ -182,7 +182,9 @@ class RoleService(CommonService):
                     for resource in resources
                     for action in actions
                 ]
+                logging.info(f"=========rows{rows}")
                 for row in rows:
+                    logging.info(f"=========singleRow{row}")
                     if not RolePermission.get_or_none(**row):
                         RolePermission.insert(**row)
 
