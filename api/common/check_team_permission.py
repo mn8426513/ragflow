@@ -15,8 +15,9 @@
 #
 
 
-from api.db import TenantPermission
+from api.db import KbPermission, TenantPermission
 from api.db.db_models import File, Knowledgebase
+from api.db.services.enterprise_service import KnowledgebaseACLService
 from api.db.services.file_service import FileService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.user_service import TenantService
@@ -31,10 +32,28 @@ def check_kb_team_permission(kb: dict | Knowledgebase, other: str) -> bool:
         return True
 
     if kb["permission"] != TenantPermission.TEAM:
-        return False
+        return KnowledgebaseACLService.has_permission(kb["id"], other, KbPermission.READ.value)
 
     joined_tenants = TenantService.get_joined_tenants_by_user_id(other)
-    return any(tenant["tenant_id"] == kb_tenant_id for tenant in joined_tenants)
+    if any(tenant["tenant_id"] == kb_tenant_id for tenant in joined_tenants):
+        return True
+    return KnowledgebaseACLService.has_permission(kb["id"], other, KbPermission.READ.value)
+
+
+def check_kb_write_permission(kb: dict | Knowledgebase, other: str) -> bool:
+    kb = kb.to_dict() if isinstance(kb, Knowledgebase) else kb
+
+    kb_tenant_id = kb["tenant_id"]
+
+    if kb_tenant_id == other or kb.get("created_by") == other:
+        return True
+
+    if kb["permission"] == TenantPermission.TEAM:
+        joined_tenants = TenantService.get_joined_tenants_by_user_id(other)
+        if any(tenant["tenant_id"] == kb_tenant_id for tenant in joined_tenants):
+            return True
+
+    return KnowledgebaseACLService.has_permission(kb["id"], other, KbPermission.WRITE.value)
 
 
 def check_file_team_permission(file: dict | File, other: str) -> bool:
@@ -54,6 +73,27 @@ def check_file_team_permission(file: dict | File, other: str) -> bool:
             continue
 
         if check_kb_team_permission(kb, other):
+            return True
+
+    return False
+
+
+def check_file_write_permission(file: dict | File, other: str) -> bool:
+    file = file.to_dict() if isinstance(file, File) else file
+
+    file_tenant_id = file["tenant_id"]
+    if file_tenant_id == other:
+        return True
+
+    file_id = file["id"]
+    kb_ids = [kb_info["kb_id"] for kb_info in FileService.get_kb_id_by_file_id(file_id)]
+
+    for kb_id in kb_ids:
+        ok, kb = KnowledgebaseService.get_by_id(kb_id)
+        if not ok:
+            continue
+
+        if check_kb_write_permission(kb, other):
             return True
 
     return False

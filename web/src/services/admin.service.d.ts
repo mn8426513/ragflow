@@ -39,12 +39,14 @@ declare namespace AdminService {
   };
 
   export type ListUsersItem = {
+    id: string;
     create_date: string;
     email: string;
     is_active: '0' | '1';
     is_superuser: boolean;
     role: string;
     nickname: string;
+    department?: string[];
   };
 
   export type UserDetail = {
@@ -233,5 +235,71 @@ declare namespace AdminService {
   export type SandboxConfig = {
     provider_type: string;
     config: Record<string, unknown>;
+  };
+
+  export type Department = {
+    id: string;
+    name: string;
+    parent_id?: string | null;
+    description?: string;
+    created_by?: string;
+    create_date?: string;
+    update_date?: string;
+  };
+
+  export type DepartmentMember = {
+    user_id: string;
+    email: string;
+    nickname?: string;
+  };
+
+  export type AuditLog = {
+    id: string;
+    user_id?: string;
+    email?: string;
+    action: string;
+    resource_type?: string;
+    resource_id?: string;
+    detail?: string;
+    ip_address?: string;
+    user_agent?: string;
+    create_time?: number;
+    create_date?: string;
+  };
+
+  export type SecuritySettings = {
+    password_policy: {
+      min_length: number;
+      require_uppercase: boolean;
+      require_lowercase: boolean;
+      require_digit: boolean;
+      require_special: boolean;
+    };
+    watermark: {
+      enabled: boolean;
+      text: string;
+      opacity: number;
+      font_size: number;
+    };
+    login_lockout: {
+      max_attempts: number;
+      lock_minutes: number;
+    };
+    session_timeout_minutes: number;
+  };
+
+  export type SsoProvider = {
+    channel: string;
+    type: 'oidc' | 'oauth2' | 'github';
+    display_name?: string;
+    icon?: string;
+    client_id?: string;
+    client_secret?: string;
+    redirect_uri?: string;
+    issuer?: string;
+    authorization_url?: string;
+    token_url?: string;
+    userinfo_url?: string;
+    scope?: string;
   };
 }

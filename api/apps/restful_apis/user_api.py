@@ -27,6 +27,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from api.apps.auth import get_auth_client
 from api.db import FileType, UserTenantRole
+from api.db.services.enterprise_service import AuditLogService, WhitelistService, check_password_policy, get_db_sso_providers
 from api.db.services.file_service import FileService
 from api.db.services.user_service import TenantService, UserService, UserTenantService
 from common.time_utils import current_timestamp, datetime_format, get_format_time
@@ -129,6 +130,14 @@ async def login():
         user.update_date = datetime_format(datetime.now())
         user.save()
         logging.info("Login successful: user_id=%s", user.id)
+        AuditLogService.record(
+            user_id=user.id,
+            email=user.email,
+            action="user login",
+            resource_type="auth",
+            ip_address=request.remote_addr or "",
+            user_agent=request.headers.get("User-Agent", ""),
+        )
         msg = "Welcome back!"
 
         return await construct_response(data=user.to_safe_dict(for_self=True), auth=user.get_id(), message=msg)
@@ -141,6 +150,12 @@ async def login():
         )
 
 
+def _merged_oauth_config():
+    merged = dict(settings.OAUTH_CONFIG or {})
+    merged.update(get_db_sso_providers())
+    return merged
+
+
 @manager.route("/auth/login/channels", methods=["GET"])  # noqa: F821
 async def get_login_channels():
     """
@@ -148,7 +163,7 @@ async def get_login_channels():
     """
     try:
         channels = []
-        for channel, config in settings.OAUTH_CONFIG.items():
+        for channel, config in _merged_oauth_config().items():
             channels.append(
                 {
                     "channel": channel,
@@ -164,7 +179,7 @@ async def get_login_channels():
 
 @manager.route("/auth/login/<channel>", methods=["GET"])  # noqa: F821
 async def oauth_login(channel):
-    channel_config = settings.OAUTH_CONFIG.get(channel)
+    channel_config = _merged_oauth_config().get(channel)
     if not channel_config:
         raise ValueError(f"Invalid channel name: {channel}")
     auth_cli = get_auth_client(channel_config)
@@ -222,6 +237,8 @@ async def oauth_callback(channel):
         user_id = get_uuid()
 
         if not users:
+            if not WhitelistService.is_registration_allowed(user_info.email):
+                return redirect("/?error=email_not_in_whitelist")
             try:
                 try:
                     avatar = await download_img(user_info.avatar_url)
@@ -296,6 +313,14 @@ async def log_out():
         return get_json_result(code=RetCode.SERVER_ERROR, data=False, message="Failed to update access token")
     logout_user()
     logging.info("Logout: user_id=%s, access_token invalidated", user_id)
+    AuditLogService.record(
+        user_id=user_id,
+        email=user.email,
+        action="user logout",
+        resource_type="auth",
+        ip_address=request.remote_addr or "",
+        user_agent=request.headers.get("User-Agent", ""),
+    )
     return get_json_result(data=True)
 
 
@@ -342,7 +367,11 @@ async def setting_user():
             )
 
         if new_password:
-            update_dict["password"] = generate_password_hash(decrypt(new_password))
+            plain_new_password = decrypt(new_password)
+            ok, policy_msg = check_password_policy(plain_new_password)
+            if not ok:
+                return get_json_result(data=False, message=policy_msg, code=RetCode.OPERATING_ERROR)
+            update_dict["password"] = generate_password_hash(plain_new_password)
             update_dict["access_token"] = f"INVALID_{secrets.token_hex(16)}"
             password_changed = True
 
@@ -515,6 +544,13 @@ async def user_add():
             code=RetCode.OPERATING_ERROR,
         )
 
+    if not WhitelistService.is_registration_allowed(email_address):
+        return get_json_result(
+            data=False,
+            message=f"Email: {email_address} is not in the registration whitelist!",
+            code=RetCode.OPERATING_ERROR,
+        )
+
     # Check if the email address is already used
     if UserService.query(email=email_address):
         return get_json_result(
@@ -530,11 +566,16 @@ async def user_add():
         return get_json_result(data=False, message=error_message, code=error_code)
     nickname = nickname.strip()
 
+    plain_password = decrypt(req["password"])
+    ok, policy_msg = check_password_policy(plain_password)
+    if not ok:
+        return get_json_result(data=False, message=policy_msg, code=RetCode.OPERATING_ERROR)
+
     user_dict = {
         "access_token": get_uuid(),
         "email": email_address,
         "nickname": nickname,
-        "password": decrypt(req["password"]),
+        "password": plain_password,
         "login_channel": "password",
         "last_login_time": get_format_time(),
         "is_superuser": False,

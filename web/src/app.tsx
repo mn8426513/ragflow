@@ -30,6 +30,7 @@ import weekYear from 'dayjs/plugin/weekYear';
 import weekday from 'dayjs/plugin/weekday';
 import React from 'react';
 import { RouterProvider } from 'react-router';
+import EnterpriseWatermark from './components/enterprise-watermark';
 import { ThemeProvider } from './components/theme-provider';
 import { TooltipProvider } from './components/ui/tooltip';
 import { ThemeEnum } from './constants/common';
@@ -81,6 +82,8 @@ function Root({ children }: React.PropsWithChildren) {
   return (
     <>
       {children}
+
+      <EnterpriseWatermark />
 
       <Sonner position="top-right" expand richColors closeButton />
 

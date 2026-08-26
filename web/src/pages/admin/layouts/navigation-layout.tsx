@@ -5,8 +5,11 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import {
+  LucideBuilding2,
   LucideMonitor,
+  LucideScrollText,
   LucideServerCrash,
+  LucideShieldCheck,
   LucideSquareUserRound,
   LucideUserCog,
   LucideUserStar,
@@ -67,6 +70,21 @@ const AdminNavigationLayout = () => {
               path: Routes.AdminMonitoring,
               name: t('admin.monitoring'),
               icon: <LucideMonitor className="size-[1em]" />,
+            },
+            {
+              path: Routes.AdminDepartments,
+              name: t('admin.departments'),
+              icon: <LucideBuilding2 className="size-[1em]" />,
+            },
+            {
+              path: Routes.AdminAuditLogs,
+              name: t('admin.auditLogs'),
+              icon: <LucideScrollText className="size-[1em]" />,
+            },
+            {
+              path: Routes.AdminSecuritySettings,
+              name: t('admin.securitySettings'),
+              icon: <LucideShieldCheck className="size-[1em]" />,
             },
           ]
         : []),

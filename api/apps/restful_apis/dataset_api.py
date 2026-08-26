@@ -20,6 +20,7 @@ from quart import make_response, request
 
 from api.apps import current_user, login_required
 from api.apps.services import dataset_api_service
+from api.db.services.enterprise_service import AuditLogService
 from api.utils.api_utils import add_tenant_id_to_kwargs, get_error_argument_result, get_error_data_result, get_json_result, get_result
 from api.utils.pagination_utils import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, validate_rest_api_ids, validate_rest_api_page, validate_rest_api_page_size
 from api.utils.validation_utils import (
@@ -149,6 +150,15 @@ async def create(tenant_id: str = None):
             tenant_id = current_user.id
         success, result = await dataset_api_service.create_dataset(tenant_id, req)
         if success:
+            AuditLogService.record(
+                user_id=current_user.id,
+                email=current_user.email,
+                action="create dataset",
+                resource_type="dataset",
+                resource_id=result.get("id", ""),
+                ip_address=request.remote_addr or "",
+                user_agent=request.headers.get("User-Agent", ""),
+            )
             return get_result(data=result)
         else:
             return get_error_data_result(message=result)
@@ -209,6 +219,16 @@ async def delete(tenant_id):
     try:
         success, result = await dataset_api_service.delete_datasets(tenant_id, req.get("ids"), req.get("delete_all", False))
         if success:
+            AuditLogService.record(
+                user_id=current_user.id,
+                email=current_user.email,
+                action="delete dataset",
+                resource_type="dataset",
+                resource_id=",".join(req.get("ids") or []),
+                detail=str(result),
+                ip_address=request.remote_addr or "",
+                user_agent=request.headers.get("User-Agent", ""),
+            )
             return get_result(data=result)
         else:
             return get_error_data_result(message=result)
@@ -296,6 +316,15 @@ async def update(tenant_id, dataset_id):
     try:
         success, result = await dataset_api_service.update_dataset(tenant_id, dataset_id, req)
         if success:
+            AuditLogService.record(
+                user_id=current_user.id,
+                email=current_user.email,
+                action="update dataset",
+                resource_type="dataset",
+                resource_id=dataset_id,
+                ip_address=request.remote_addr or "",
+                user_agent=request.headers.get("User-Agent", ""),
+            )
             return get_result(data=result)
         else:
             return get_error_data_result(message=result)

@@ -20,7 +20,7 @@ from pathlib import Path
 
 from quart import request
 
-from api.common.check_team_permission import check_file_team_permission, check_kb_team_permission
+from api.common.check_team_permission import check_file_team_permission, check_kb_write_permission
 from api.db.services import duplicate_name
 from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
@@ -170,7 +170,7 @@ async def convert():
                 return get_data_error_result(message="no authorization")
 
         for kb_id, kb in kb_map.items():
-            if not check_kb_team_permission(kb, user_id):
+            if not check_kb_write_permission(kb, user_id):
                 logger.warning(
                     "user_id=%s resource_type=dataset resource_id=%s action=authorize_dataset result=denied file_ids=%s kb_ids=%s",
                     user_id,

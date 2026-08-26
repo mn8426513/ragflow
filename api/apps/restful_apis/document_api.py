@@ -47,7 +47,7 @@ from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.canvas_service import UserCanvasService
-from api.common.check_team_permission import check_kb_team_permission
+from api.common.check_team_permission import check_kb_write_permission
 from api.db.services.task_service import TaskService, cancel_all_task_of
 from api.utils.api_utils import (
     construct_json_result,
@@ -522,9 +522,9 @@ async def upload_document(dataset_id, tenant_id):
         logging.error(f"Can't find the dataset with ID {dataset_id}!")
         return get_error_data_result(message=f"Can't find the dataset with ID {dataset_id}!", code=RetCode.DATA_ERROR)
 
-    if not check_kb_team_permission(kb, tenant_id):
+    if not check_kb_write_permission(kb, tenant_id):
         logging.error("no authorization")
-        return get_error_data_result(message="no authorization", code=RetCode.AUTHENTICATION_ERROR)
+        return get_error_data_result(message="no authorization（无权限）", code=RetCode.AUTHENTICATION_ERROR)
 
     if upload_type == "web":
         return await _upload_web_document(dataset_id, kb, tenant_id)

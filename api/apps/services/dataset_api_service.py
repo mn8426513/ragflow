@@ -18,9 +18,11 @@ import logging
 import os
 import re
 
+from api.db import KbPermission
 from api.db.db_models import File
 from api.db.joint_services.tenant_model_service import get_composite_model_name_by_ids, resolve_model_config, resolve_model_id
 from api.db.services.connector_service import Connector2KbService
+from api.db.services.enterprise_service import KnowledgebaseACLService
 from api.db.services.document_service import DocumentService, queue_raptor_o_graphrag_tasks
 from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
@@ -160,8 +162,8 @@ def _delete_datasets_sync(tenant_id: str, ids: list = None, delete_all: bool = F
 
     error_kb_ids = []
     for kb_id in ids:
-        kb = KnowledgebaseService.get_or_none(id=kb_id, tenant_id=tenant_id)
-        if kb is None:
+        kb = KnowledgebaseService.get_or_none(id=kb_id)
+        if kb is None or not KnowledgebaseACLService.has_permission(kb_id, tenant_id, KbPermission.MANAGE.value):
             error_kb_ids.append(kb_id)
             continue
         kb_id_instance_pairs.append((kb_id, kb))
@@ -286,9 +288,8 @@ async def update_dataset(tenant_id: str, dataset_id: str, req: dict):
     if not req:
         return False, "no properties were modified"
 
-    kbs = KnowledgebaseService.get_kb_by_id(dataset_id, tenant_id)
-    if not kbs:
-        return False, f"User '{tenant_id}' lacks permission for dataset '{dataset_id}'"
+    if not KnowledgebaseACLService.has_permission(dataset_id, tenant_id, KbPermission.WRITE.value):
+        return False, f"User '{tenant_id}' lacks write permission for dataset '{dataset_id}'"
 
     kb = KnowledgebaseService.get_or_none(id=dataset_id)
     if kb is None:

@@ -175,6 +175,7 @@ if __name__ == "__main__":
     local_dir = os.path.abspath("nltk_data")
     for data in ["wordnet", "punkt", "punkt_tab"]:
         print(f"Downloading nltk {data}...")
+        nltk.pathsec.ALLOW_PROXIED_FETCH = True
         nltk.download(data, download_dir=local_dir)
 
     for repo_id in repos:

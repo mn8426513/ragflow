@@ -17,7 +17,7 @@ import logging
 import os
 import pathlib
 
-from api.common.check_team_permission import check_file_team_permission
+from api.common.check_team_permission import check_file_team_permission, check_file_write_permission
 from api.db import FileType
 from api.db.services import duplicate_name
 from api.db.services.document_service import DocumentService
@@ -439,7 +439,7 @@ async def delete_files(uid: str, file_ids: list, auth_header: str = ""):
             if not file.tenant_id:
                 errors.append(f"Tenant not found for file {file_id}")
                 continue
-            if not check_file_team_permission(file, uid):
+            if not check_file_write_permission(file, uid):
                 errors.append(f"No authorization for file {file_id}")
                 continue
 
@@ -487,7 +487,7 @@ async def move_files(uid: str, src_file_ids: list, dest_file_id: str | None = No
             return False, "File or folder not found!"
         if not file.tenant_id:
             return False, "Tenant not found!"
-        if not check_file_team_permission(file, uid):
+        if not check_file_write_permission(file, uid):
             return False, "no authorization"
 
     dest_folder = None
