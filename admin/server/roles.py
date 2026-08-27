@@ -26,7 +26,7 @@ from api.db.services.user_service import UserService
 
 
 def _role_payload(role) -> dict[str, Any]:
-    payload = role.to_dict()
+    payload = role
     payload["name"] = payload.get("role_name", "")
     return payload
 
