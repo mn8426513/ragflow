@@ -83,7 +83,7 @@ class RoleMgr:
             roles = []
             for role in RoleService.list_roles():
                 payload = _role_payload(role)
-                payload["permissions"] = RoleService.get_role_permissions(role.id)
+                payload["permissions"] = RoleService.get_role_permissions(role["id"])
                 roles.append(payload)
             return {"roles": roles, "total": len(roles)}
         except Exception as e:
