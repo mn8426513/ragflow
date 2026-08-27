@@ -20,6 +20,7 @@ from quart import make_response, request
 
 from api.apps import current_user, login_required
 from api.apps.services import dataset_api_service
+from api.common.rbac import user_has_permission
 from api.db.services.enterprise_service import AuditLogService
 from api.utils.api_utils import add_tenant_id_to_kwargs, get_error_argument_result, get_error_data_result, get_json_result, get_result
 from api.utils.pagination_utils import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, validate_rest_api_ids, validate_rest_api_page, validate_rest_api_page_size
@@ -148,6 +149,8 @@ async def create(tenant_id: str = None):
     try:
         if not tenant_id:
             tenant_id = current_user.id
+        if not user_has_permission(tenant_id, "dataset", "write"):
+            return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
         success, result = await dataset_api_service.create_dataset(tenant_id, req)
         if success:
             AuditLogService.record(

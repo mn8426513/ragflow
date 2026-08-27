@@ -40,6 +40,7 @@ from api.utils.web_utils import CONTENT_TYPE_MAP, apply_safe_file_response_heade
 from common import settings
 from common.misc_utils import thread_pool_exec
 from api.apps.services import file_api_service
+from api.common.rbac import user_has_permission
 
 
 @manager.route("/files", methods=["POST"])  # noqa: F821
@@ -63,6 +64,8 @@ async def create_or_upload(tenant_id: str = None):
       200:
         description: Successful operation.
     """
+    if not user_has_permission(tenant_id, "file", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     content_type = request.content_type or ""
     try:
         if "multipart/form-data" in content_type:
@@ -136,6 +139,8 @@ async def list_files(tenant_id: str = None):
       200:
         description: Successful operation.
     """
+    if not user_has_permission(tenant_id, "file", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     args, err = validate_and_parse_request_args(request, ListFileReq)
     if err is not None:
         return get_error_argument_result(err)
@@ -180,6 +185,8 @@ async def delete(tenant_id: str = None):
       200:
         description: Successful operation.
     """
+    if not user_has_permission(tenant_id, "file", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req, err = await validate_and_parse_json_request(request, DeleteFileReq)
     if err is not None:
         return get_error_argument_result(err)
@@ -244,6 +251,8 @@ async def move(tenant_id: str = None):
       200:
         description: Successful operation.
     """
+    if not user_has_permission(tenant_id, "file", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req, err = await validate_and_parse_json_request(request, MoveFileReq)
     if err is not None:
         return get_error_argument_result(err)
@@ -263,6 +272,8 @@ async def move(tenant_id: str = None):
 @login_required
 @add_tenant_id_to_kwargs
 async def download(tenant_id: str = None, file_id: str = None):
+    if not user_has_permission(tenant_id, "file", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     """
     Download a file.
     ---
@@ -318,6 +329,8 @@ async def download(tenant_id: str = None, file_id: str = None):
 @login_required
 @add_tenant_id_to_kwargs
 async def parent_folder(tenant_id: str = None, file_id: str = None):
+    if not user_has_permission(tenant_id, "file", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     """
     Get parent folder of a file.
     ---
@@ -349,6 +362,8 @@ async def parent_folder(tenant_id: str = None, file_id: str = None):
 @login_required
 @add_tenant_id_to_kwargs
 async def ancestors(tenant_id: str = None, file_id: str = None):
+    if not user_has_permission(tenant_id, "file", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     """
     Get all ancestor folders of a file.
     ---
