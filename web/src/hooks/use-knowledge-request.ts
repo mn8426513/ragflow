@@ -16,8 +16,11 @@
 
 import { useHandleFilterSubmit } from '@/components/list-filter-bar/use-handle-filter-submit';
 import message from '@/components/ui/message';
-import { isGoDatasetBackend } from '@/utils/api-proxy-scheme';
+import { useIsGoBackend } from '@/utils/backend-variant';
+import { isDatasetId } from '@/utils/dataset-util';
+import { markListItemsDeleted } from '@/utils/list-deletion-util';
 import { GenerateType, ParseType } from '@/constants/knowledge';
+import { ListDeletionKey } from '@/constants/list-deletion';
 import { ResponsePostType, ResponseType } from '@/interfaces/database/base';
 import {
   IArtifact,
@@ -192,10 +195,12 @@ export const useTestRetrieval = () => {
 };
 
 export const useFetchNextKnowledgeListByPage = () => {
-  const { searchString, handleInputChange } = useHandleSearchChange();
+  const { searchString, setSearchString, handleInputChange } =
+    useHandleSearchChange();
   const { pagination, setPagination } = useGetPaginationWithRouter();
   const debouncedSearchString = useDebounce(searchString, { wait: 500 });
-  const { filterValue, handleFilterSubmit } = useHandleFilterSubmit();
+  const { filterValue, setFilterValue, handleFilterSubmit } =
+    useHandleFilterSubmit();
 
   const { data, isFetching: loading } = useQuery<IDatasetListResult>({
     queryKey: [
@@ -234,11 +239,13 @@ export const useFetchNextKnowledgeListByPage = () => {
   return {
     ...data,
     searchString,
+    setSearchString,
     handleInputChange: onInputChange,
     pagination: { ...pagination, total: data?.total_datasets },
     setPagination,
     loading,
     filterValue,
+    setFilterValue,
     handleFilterSubmit,
   };
 };
@@ -315,6 +322,7 @@ export const useDeleteKnowledge = () => {
         queryClient.invalidateQueries({
           queryKey: [KnowledgeApiAction.FetchDatasetFilter],
         });
+        markListItemsDeleted(ListDeletionKey.KnowledgeList);
       }
       return data?.data ?? [];
     },
@@ -979,6 +987,7 @@ export const useClearWiki = () => {
 export const useRunArtifactIndex = (kind: string) => {
   const knowledgeBaseId = useKnowledgeBaseId();
   const queryClient = useQueryClient();
+  const isGo = useIsGoBackend();
 
   const {
     data,
@@ -987,11 +996,11 @@ export const useRunArtifactIndex = (kind: string) => {
   } = useMutation({
     mutationKey: [KnowledgeApiAction.RunArtifactIndex],
     mutationFn: async () => {
-      // Go/hybrid: wiki compilation is auto-driven by the scheduler; there is no
+      // Go: wiki compilation is auto-driven by the scheduler; there is no
       // legacy RunIndex endpoint. Reject instead of reporting success so a wiki
       // update can't be mistaken for a real re-merge (the UI hides/disables the
       // update control — plan v4.1 §4.2).
-      if (isGoDatasetBackend()) {
+      if (isGo) {
         throw new Error(i18n.t('message.compileNotSupported'));
       }
       const { data } = await runIndex(knowledgeBaseId, 'wiki');
@@ -1116,9 +1125,13 @@ export const useFetchKnowledgeList = (
  * Fetch datasets by a set of IDs. Used to resolve already-selected datasets
  * that are not present in the first page of the paginated list, e.g. to echo
  * their names in a form field. For staleness checks see `useStaleDatasetIds`.
+ *
+ * Callers may pass values mixed with variable references (agent forms let
+ * users pick variables alongside datasets); those are not resolvable ids and
+ * are dropped before the request is built.
  */
 export const useFetchDatasetsByIds = (ids: string[]) => {
-  const sortedIds = useMemo(() => [...ids].sort(), [ids]);
+  const sortedIds = useMemo(() => ids.filter(isDatasetId).sort(), [ids]);
   const { data, isFetching: loading } = useQuery<IDataset[]>({
     queryKey: KnowledgeListKeys.byIds(sortedIds),
     enabled: sortedIds.length > 0,
@@ -1143,7 +1156,13 @@ export const useFetchDatasetsByIds = (ids: string[]) => {
  * until it settles; `settled` flips true once the lookup has finished.
  */
 export const useStaleDatasetIds = (datasetIds?: string[]) => {
-  const persistedIds = useMemo(() => datasetIds ?? [], [datasetIds]);
+  // Variable references (e.g. `sys.query`) never resolve to datasets, so
+  // exclude them up front instead of letting them fall out of the lookup
+  // below and get misreported as stale.
+  const persistedIds = useMemo(
+    () => (datasetIds ?? []).filter(isDatasetId),
+    [datasetIds],
+  );
   const { data: datasets, loading } = useFetchDatasetsByIds(persistedIds);
 
   const staleDatasetIds = useMemo(() => {

@@ -64,7 +64,7 @@ class Dealer:
 
         def load_dict(fnm):
             res = {}
-            with open(fnm, "r") as f:
+            with open(fnm, "r", encoding="utf-8") as f:
                 while True:
                     line = f.readline()
                     if not line:
@@ -88,7 +88,7 @@ class Dealer:
         logging.info(f"ner.json路径 {os.path.join(fnm, "ner.json")}")
         self.ne, self.df = {}, {}
         try:
-            with open(os.path.join(fnm, "ner.json"), "r",encoding="utf-8") as f:
+            with open(os.path.join(fnm, "ner.json"), "r", encoding="utf-8") as f:
                 self.ne = json.load(f)
         except Exception:
             logging.warning(f"Load ner.json FAIL!")

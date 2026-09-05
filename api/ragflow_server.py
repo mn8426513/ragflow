@@ -79,6 +79,7 @@ from rag.utils.redis_conn import RedisDistributedLock
 # 停止事件 - 用于协调优雅关闭 (Stop event for graceful shutdown coordination)
 stop_event = threading.Event()
 chat_channel_thread = None
+shutdown_requested = False
 
 RAGFLOW_DEBUGPY_LISTEN = int(os.environ.get("RAGFLOW_DEBUGPY_LISTEN", "0"))
 
@@ -117,6 +118,15 @@ def stop_background_services():
 
 
 def signal_handler(sig, frame):
+    global shutdown_requested
+    if shutdown_requested:
+        os.kill(os.getpid(), signal.SIGKILL)
+        return
+    shutdown_requested = True
+    sys.exit(0)
+
+
+def run_server():
     """信号处理函数 - 处理 SIGINT/SIGTERM 实现优雅关闭 (Graceful shutdown handler)
 
     1. 关闭所有 MCP 工具调用会话
@@ -221,13 +231,33 @@ if __name__ == '__main__':
         threading.Timer(1.0, delayed_start_update_progress).start()
         start_chat_channels()
 
+    # start http server
+    logging.info(f"RAGFlow server is ready after {time.time() - start_ts}s initialization.")
+    app.run(host=settings.HOST_IP, port=settings.HOST_PORT, use_reloader=RuntimeConfig.DEBUG, debug=False)
+
+
+def main():
+    force_kill = False
     # 启动 HTTP 服务器 (Start HTTP server)
     try:
-        logging.info(f"RAGFlow server is ready after {time.time() - start_ts}s initialization.")
-        app.run(host=settings.HOST_IP, port=settings.HOST_PORT, use_reloader=RuntimeConfig.DEBUG, debug=False)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        run_server()
     except Exception as e:
+        force_kill = True
         logging.exception(f"Unhandled exception: {e}")
-        stop_background_services()
-        os.kill(os.getpid(), signal.SIGKILL)
     finally:
-        stop_background_services()
+        if shutdown_requested:
+            logging.info("Received interrupt signal, shutting down...")
+        try:
+            shutdown_all_mcp_sessions()
+        finally:
+            try:
+                stop_background_services()
+            finally:
+                if force_kill:
+                    os.kill(os.getpid(), signal.SIGKILL)
+
+
+if __name__ == "__main__":
+    main()
