@@ -236,9 +236,17 @@ services:
       timeout: 10s
       retries: 120
     restart: unless-stopped
-
+#### MinIO 用的是 pgsty/silo:RELEASE.2026-08-06T00-00-00Z，它不是官方 minio/minio，
+#### 而是 PGSTY 的 Silo S3 兼容实现，镜像基于 Red Hat UBI9 Micro 精简系统，构建时没有安装 tzdata，
+#### 容器里既没有 /usr/share/zoneinfo，也没有 /etc/localtime
+#### 1.新增 docker/minio-tz/Dockerfile mysql:8.0.40 只用来当“时区数据源”，因为它自带 /usr/share/zoneinfo，
+####   而且本来就在你们的 compose 里，不需要额外拉新镜像。最终镜像仍然是 pgsty/silo，只是多了时区数据。
+#### 2. docker build -t pgsty/silo:RELEASE.2026-08-06T00-00-00Z-tz docker/minio-tz
+#### 3. [docker-compose-base.yml (line 240)](D:/Users/Administrator/PycharmProjects/ragflow/docker/
+####    docker-compose-base.yml:240) 里 MinIO 的镜像改成本地这个标签：silo:RELEASE.2026-08-06T00-00-00Z-tz
+#### 4. docker compose -f docker-compose-base.yml up -d
   minio:
-    image: pgsty/silo:RELEASE.2026-08-06T00-00-00Z
+    image: pgsty/silo:RELEASE.2026-08-06T00-00-00Z-tz
     command: ["server", "--console-address", ":9001", "/data"]
     ports:
       - ${MINIO_PORT}:9000
