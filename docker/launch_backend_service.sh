@@ -72,10 +72,8 @@ STOP=false
 PIDS=()
 
 # Set the path to the NLTK data directory
-# download_deps.py downloads NLTK data into ragflow_deps/nltk_data (see
-# ragflow_deps/download_deps.py); point NLTK_DATA there directly instead of a
-# stale top-level ./nltk_data so this matches what's actually populated.
-export NLTK_DATA="$(pwd)/ragflow_deps/nltk_data"
+export NLTK_DATA="$(cd "$(dirname "${BASH_SOURCE[0]}")/../ragflow_deps/nltk_data" && pwd)"
+echo "NLTK_DATA的WordNet、punkt、punkt_tab路径是$NLTK_DATA。WordNet 是一个大型英语词汇数据库，类似于一本带有语义关系的电子词典；Punkt 是一个无监督的句子边界检测（分句）模型，能区分句号作为句子结束还是缩写中的点，Dr. Smith went to U.S.A.→ 正确识别 Dr. 和 U.S.A. 中的点不是句号；Punkt_tab 是 Punkt 的表格数据版本"
 
 # Function to handle termination signals
 cleanup() {
@@ -260,6 +258,12 @@ START_ADMIN=0
 START_DATA_SYNC=0
 DEBUG_MODE=0
 SERVICE_SELECTED=0
+
+if [ $# -eq 0 ]; then
+  START_RAGFLOW=1
+  START_TASK_EXECUTOR=1
+  START_ADMIN=1
+fi
 
 for arg in "$@"; do
   case $arg in
