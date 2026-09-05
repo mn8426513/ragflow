@@ -37,6 +37,7 @@ from quart import Response, jsonify, request, make_response
 
 from api.apps import AUTH_JWT, AUTH_API, AUTH_BETA, current_user, login_required
 from api.apps.services.canvas_replica_service import CanvasReplicaService
+from api.common.rbac import can_share_agent, can_write_agent, user_has_permission
 from api.db import CanvasCategory
 from api.db.db_models import Task
 from api.db.services.api_service import API4ConversationService
@@ -92,7 +93,7 @@ def _canvas_json_default(obj):
 def _require_canvas_access_sync(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not UserCanvasService.accessible(kwargs.get("agent_id"), kwargs.get("tenant_id")):
+        if not UserCanvasService.accessible(kwargs.get("agent_id"), kwargs.get("tenant_id")) or not user_has_permission(kwargs.get("tenant_id"), "agent", "read"):
             return get_json_result(data=False, message="Make sure you have permission to access the agent.", code=RetCode.OPERATING_ERROR)
         return func(*args, **kwargs)
 
@@ -104,7 +105,7 @@ def _require_canvas_access_async(func):
     async def wrapper(*args, **kwargs):
         agent_id = kwargs.get("agent_id")
         tenant_id = kwargs.get("tenant_id")
-        if not await thread_pool_exec(UserCanvasService.accessible, agent_id, tenant_id):
+        if not await thread_pool_exec(UserCanvasService.accessible, agent_id, tenant_id) or not user_has_permission(tenant_id, "agent", "read"):
             return get_json_result(data=False, message="Make sure you have permission to access the agent.", code=RetCode.OPERATING_ERROR)
         return await func(*args, **kwargs)
 
@@ -114,8 +115,8 @@ def _require_canvas_access_async(func):
 def _require_canvas_owner_sync(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not UserCanvasService.query(user_id=kwargs.get("tenant_id"), id=kwargs.get("agent_id")):
-            return get_json_result(data=False, message="Only the owner of the agent is authorized for this operation.", code=RetCode.OPERATING_ERROR)
+        if not can_write_agent(kwargs.get("tenant_id"), kwargs.get("agent_id")):
+            return get_json_result(data=False, message="Only the owner of the agent or a user with agent write permission is authorized for this operation.", code=RetCode.OPERATING_ERROR)
         return func(*args, **kwargs)
 
     return wrapper
@@ -681,6 +682,8 @@ _COMPILATION_TEMPLATE_GROUP_CATEGORY = "compilation_template_group"
 @login_required
 @add_tenant_id_to_kwargs
 def list_agents(tenant_id):
+    if not user_has_permission(tenant_id, "agent", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     if request.args.get("type") == "filter":
         tenants = TenantService.get_joined_tenants_by_user_id(tenant_id)
         joined_tenant_ids = list({member["tenant_id"] for member in tenants} | {tenant_id})
@@ -883,6 +886,8 @@ def list_agent_tags(tenant_id):
 @login_required
 @add_tenant_id_to_kwargs
 async def update_agent_tags(tenant_id, canvas_id):
+    if not can_write_agent(tenant_id, canvas_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     if not UserCanvasService.accessible(canvas_id, tenant_id):
         logging.info(
             "update_agent_tags denied tenant=%s canvas_id=%s reason=no_permission",
@@ -924,6 +929,8 @@ async def update_agent_tags(tenant_id, canvas_id):
 @login_required
 @add_tenant_id_to_kwargs
 async def create_agent(tenant_id):
+    if not user_has_permission(tenant_id, "agent", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = {k: v for k, v in (await get_request_json()).items() if v is not None}
     req["canvas_type"] = req.get("canvas_type", "")
     req["user_id"] = tenant_id
@@ -992,6 +999,8 @@ async def create_agent(tenant_id):
 @add_tenant_id_to_kwargs
 @_require_canvas_access_async
 async def upload_agent_file(agent_id, tenant_id):
+    if not can_write_agent(tenant_id, agent_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     files = await request.files
     file_objs = files.getlist("file") if files and files.get("file") else []
     logging.info(
@@ -1038,6 +1047,8 @@ def get_agent_component_input_form(agent_id, component_id, tenant_id):
 @add_tenant_id_to_kwargs
 @_require_canvas_access_async
 async def debug_agent_component(agent_id, component_id, tenant_id):
+    if not can_write_agent(tenant_id, agent_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = await get_request_json()
     try:
         from agent.canvas import Canvas
@@ -1175,7 +1186,11 @@ def delete_agent(agent_id, tenant_id):
 @add_tenant_id_to_kwargs
 @_require_canvas_access_async
 async def update_agent(agent_id, tenant_id):
+    if not can_write_agent(tenant_id, agent_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = {k: v for k, v in (await get_request_json()).items() if v is not None}
+    if "permission" in req and req.get("permission") and not can_share_agent(tenant_id, agent_id):
+        return get_json_result(data=False, message="no share authorization", code=RetCode.OPERATING_ERROR)
     req["canvas_type"] = req.get("canvas_type", "")
     req["release"] = bool(req.get("release", ""))
 
@@ -1233,6 +1248,8 @@ async def update_agent(agent_id, tenant_id):
 @add_tenant_id_to_kwargs
 @_require_canvas_access_async
 async def reset_agent(agent_id, tenant_id):
+    if not can_write_agent(tenant_id, agent_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         from agent.canvas import Canvas
 

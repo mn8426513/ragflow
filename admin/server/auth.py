@@ -27,6 +27,7 @@ from flask_login import current_user, login_user
 from api.common.exceptions import AdminException, UserNotFoundError
 from api.common.base64 import encode_to_base64
 from api.db.services import UserService
+from api.db.services.enterprise_service import AuditLogService, RoleService
 from api.db import UserTenantRole
 from api.db.services.user_service import TenantService, UserTenantService
 from common.constants import ActiveEnum, StatusEnum
@@ -196,6 +197,7 @@ def _write_bootstrap_password_file(password: str) -> str | None:
 
 
 def init_default_admin():
+    RoleService.ensure_default_roles()
     # Verify that at least one active admin user exists. If not, create a default one.
     # This runs only from the explicit startup path in admin_server.py; the
     # authentication handlers below must never create accounts.
@@ -311,6 +313,17 @@ def check_admin_auth(func):
             raise AdminException("Not admin", 403)
         if user.is_active == ActiveEnum.INACTIVE.value:
             raise AdminException(f"User {current_user.email} inactive", 403)
+
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            AuditLogService.record(
+                user_id=user.id,
+                email=user.email,
+                action=f"{request.method} {request.path}",
+                resource_type=request.path.split("/")[-1] if request.path else "",
+                resource_id=request.view_args.get("role_name", request.view_args.get("department_id", request.view_args.get("username", ""))) if request.view_args else "",
+                ip_address=request.remote_addr or "",
+                user_agent=request.headers.get("User-Agent", ""),
+            )
 
         return func(*args, **kwargs)
 

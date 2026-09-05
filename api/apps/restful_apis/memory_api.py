@@ -23,6 +23,7 @@ from common.exceptions import ArgumentException, NotFoundException
 from api.apps import AUTH_API, login_required, current_user
 from api.utils.api_utils import validate_request, get_request_json, get_error_argument_result, get_json_result
 from api.apps.services import memory_api_service
+from api.common.rbac import can_write_memory, user_has_permission
 from api.db.joint_services.tenant_model_service import ensure_tenant_model_ids_for_params
 from api.utils.pagination_utils import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, validate_rest_api_ids, validate_rest_api_page, validate_rest_api_page_size
 
@@ -31,6 +32,8 @@ from api.utils.pagination_utils import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, validate
 @login_required
 @validate_request("name", "memory_type", "embd_id", "llm_id")
 async def create_memory():
+    if not user_has_permission(current_user.id, "memory", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     timing_enabled = os.getenv("RAGFLOW_API_TIMING")
     t_start = time.perf_counter() if timing_enabled else None
     req = await get_request_json()
@@ -82,6 +85,8 @@ async def create_memory():
 @manager.route("/memories/<memory_id>", methods=["PUT"])  # noqa: F821
 @login_required
 async def update_memory(memory_id):
+    if not can_write_memory(current_user.id, memory_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = await get_request_json()
     # Resolve tenant_model IDs from model names when name is provided but id is not
     ensure_tenant_model_ids_for_params(current_user.id, req)
@@ -105,6 +110,13 @@ async def update_memory(memory_id):
         ]
         if k in req
     }
+    if "permissions" in new_settings:
+        from api.db.db_models import Memory
+
+        owned = Memory.get_or_none(Memory.id == memory_id, Memory.tenant_id == current_user.id)
+        if owned is None and not user_has_permission(current_user.id, "memory", "share"):
+            return get_json_result(data=False, message="no share authorization", code=RetCode.OPERATING_ERROR)
+
     try:
         success, res = await memory_api_service.update_memory(memory_id, new_settings)
         if success:
@@ -125,6 +137,8 @@ async def update_memory(memory_id):
 @manager.route("/memories/<memory_id>", methods=["DELETE"])  # noqa: F821
 @login_required
 async def delete_memory(memory_id):
+    if not can_write_memory(current_user.id, memory_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         await memory_api_service.delete_memory(memory_id)
         return get_json_result(message=True)
@@ -139,6 +153,8 @@ async def delete_memory(memory_id):
 @manager.route("/memories", methods=["GET"])  # noqa: F821
 @login_required
 async def list_memory():
+    if not user_has_permission(current_user.id, "memory", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     filter_params = {k: request.args.get(k) for k in ["memory_type", "tenant_id", "owner_ids", "ids", "storage_type"] if k in request.args}
     keywords = request.args.get("keywords")
     page = validate_rest_api_page(request.args.get("page", DEFAULT_PAGE))
@@ -161,6 +177,8 @@ async def list_memory():
 @manager.route("/memories/<memory_id>/config", methods=["GET"])  # noqa: F821
 @login_required
 async def get_memory_config(memory_id):
+    if not user_has_permission(current_user.id, "memory", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         res = await memory_api_service.get_memory_config(memory_id)
         return get_json_result(message=True, data=res)
@@ -175,6 +193,8 @@ async def get_memory_config(memory_id):
 @manager.route("/memories/<memory_id>", methods=["GET"])  # noqa: F821
 @login_required
 async def get_memory_messages(memory_id):
+    if not user_has_permission(current_user.id, "memory", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     args = request.args
     agent_ids = args.getlist("agent_id")
     if len(agent_ids) == 1 and "," in agent_ids[0]:
@@ -203,6 +223,8 @@ async def get_memory_messages(memory_id):
 @login_required
 @validate_request("memory_id", "agent_id", "session_id", "user_input", "agent_response")
 async def add_message():
+    if not user_has_permission(current_user.id, "memory", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = await get_request_json()
     memory_ids = req["memory_id"]
 
@@ -240,6 +262,8 @@ async def add_message():
 @manager.route("/messages/<memory_id>:<message_id>", methods=["DELETE"])  # noqa: F821
 @login_required
 async def forget_message(memory_id: str, message_id: int):
+    if not can_write_memory(current_user.id, memory_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         res = await memory_api_service.forget_message(memory_id, message_id)
         return get_json_result(message=res)
@@ -255,6 +279,8 @@ async def forget_message(memory_id: str, message_id: int):
 @login_required
 @validate_request("status")
 async def update_message(memory_id: str, message_id: int):
+    if not can_write_memory(current_user.id, memory_id):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = await get_request_json()
     status = req["status"]
     if not isinstance(status, bool):
@@ -277,6 +303,8 @@ async def update_message(memory_id: str, message_id: int):
 @manager.route("/messages/search", methods=["GET"])  # noqa: F821
 @login_required
 async def search_message():
+    if not user_has_permission(current_user.id, "memory", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     args = request.args
     memory_ids = args.getlist("memory_id")
     if len(memory_ids) == 1 and "," in memory_ids[0]:
@@ -302,6 +330,8 @@ async def search_message():
 @manager.route("/messages", methods=["GET"])  # noqa: F821
 @login_required
 async def get_messages():
+    if not user_has_permission(current_user.id, "memory", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     args = request.args
     memory_ids = args.getlist("memory_id")
     if len(memory_ids) == 1 and "," in memory_ids[0]:
@@ -326,6 +356,8 @@ async def get_messages():
 @manager.route("/messages/<memory_id>:<message_id>/content", methods=["GET"])  # noqa: F821
 @login_required
 async def get_message_content(memory_id: str, message_id: int):
+    if not user_has_permission(current_user.id, "memory", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         res = await memory_api_service.get_message_content(memory_id, message_id)
         return get_json_result(message=True, data=res)

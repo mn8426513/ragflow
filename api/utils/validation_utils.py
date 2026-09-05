@@ -575,7 +575,7 @@ class CreateDatasetReq(Base):
     avatar: Annotated[str | None, Field(default=None, max_length=65535)]
     description: Annotated[str | None, Field(default=None, max_length=65535)]
     embedding_model: Annotated[str | None, Field(default=None, max_length=255, serialization_alias="embd_id")]
-    permission: Annotated[Literal["me", "team"], Field(default="me", min_length=1, max_length=16)]
+    permission: Annotated[Literal["me", "team", "acl"], Field(default="me", min_length=1, max_length=16)]
     parse_type: Annotated[int | None, Field(default=None, ge=0, le=64)]
     pipeline_id: Annotated[str | None, Field(default=None, min_length=32, max_length=32, serialization_alias="pipeline_id")]
     chunk_method: Annotated[str | None, Field(default=None, serialization_alias="parser_id")]

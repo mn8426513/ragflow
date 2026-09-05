@@ -43,6 +43,7 @@ from api.db.services.dialog_service import DialogService, gen_mindmap, rag_agent
 from api.db.services.knowledgebase_service import KnowledgebaseService, validate_dataset_embedding_models
 from api.db.services.llm_service import LLMBundle
 from api.db.services.search_service import SearchService
+from api.common.rbac import user_has_permission
 from api.db.services.user_service import TenantService, UserTenantService
 from api.utils.api_utils import (
     check_duplicate_ids,
@@ -188,7 +189,13 @@ def _build_session_response(conv: dict) -> dict:
 
 
 async def _ensure_owned_chat(chat_id):
-    return await thread_pool_exec(DialogService.query, tenant_id=current_user.id, id=chat_id, status=StatusEnum.VALID.value)
+    owned = await thread_pool_exec(DialogService.query, tenant_id=current_user.id, id=chat_id, status=StatusEnum.VALID.value)
+    if owned:
+        return owned
+    if not user_has_permission(current_user.id, "chat", "write"):
+        return []
+    ok, dialog = await thread_pool_exec(DialogService.get_by_id, chat_id)
+    return [dialog] if ok else []
 
 
 def _build_default_completion_dialog():
@@ -417,6 +424,8 @@ def _apply_prompt_defaults(req):
 @manager.route("/chats", methods=["POST"])  # noqa: F821
 @login_required
 async def create():
+    if not user_has_permission(current_user.id, "chat", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         req = await get_request_json()
         ok, tenant = TenantService.get_by_id(current_user.id)
@@ -507,6 +516,8 @@ async def create():
 @manager.route("/chats", methods=["GET"])  # noqa: F821
 @login_required
 async def list_chats():
+    if not user_has_permission(current_user.id, "chat", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     chat_id = request.args.get("id")
     name = request.args.get("name")
     keywords = request.args.get("keywords", "")
@@ -569,6 +580,8 @@ async def list_chats():
 @manager.route("/chats/<chat_id>", methods=["GET"])  # noqa: F821
 @login_required
 async def get_chat(chat_id):
+    if not user_has_permission(current_user.id, "chat", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         tenants = await thread_pool_exec(UserTenantService.query, user_id=current_user.id)
         for tenant in tenants:
@@ -785,6 +798,8 @@ async def delete_chat(chat_id):
 @manager.route("/chats", methods=["DELETE"])  # noqa: F821
 @login_required
 async def bulk_delete_chats():
+    if not user_has_permission(current_user.id, "chat", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = await get_request_json()
     if not req:
         return get_json_result(data={})

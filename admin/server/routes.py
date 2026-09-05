@@ -27,6 +27,7 @@ from auth import login_admin, check_admin_auth
 from responses import success_response, error_response
 from services import UserMgr, ServiceMgr, UserServiceMgr, SettingsMgr, ConfigMgr, EnvironmentsMgr, SandboxMgr
 from roles import RoleMgr
+from enterprise import AuditMgr, DepartmentMgr, SecurityMgr, SsoMgr, WhitelistMgr
 from api.common.exceptions import AdminException
 from common.versions import get_ragflow_version
 from api.utils.api_utils import generate_confirmation_token
@@ -356,7 +357,12 @@ def get_role_permission(role_name: str):
 def grant_role_permission(role_name: str):
     try:
         data = request.get_json()
-        if not data or "actions" not in data or "resource" not in data:
+        if not data:
+            return error_response("Permission is required", 400)
+        if "new_permissions" in data:
+            res = RoleMgr.apply_permission_map(role_name, data["new_permissions"], revoke=False)
+            return success_response(res)
+        if "actions" not in data or "resource" not in data:
             return error_response("Permission is required", 400)
         actions: list = data["actions"]
         resource: str = data["resource"]
@@ -372,7 +378,12 @@ def grant_role_permission(role_name: str):
 def revoke_role_permission(role_name: str):
     try:
         data = request.get_json()
-        if not data or "actions" not in data or "resource" not in data:
+        if not data:
+            return error_response("Permission is required", 400)
+        if "revoke_permissions" in data:
+            res = RoleMgr.apply_permission_map(role_name, data["revoke_permissions"], revoke=True)
+            return success_response(res)
+        if "actions" not in data or "resource" not in data:
             return error_response("Permission is required", 400)
         actions: list = data["actions"]
         resource: str = data["resource"]
@@ -397,6 +408,19 @@ def update_user_role(user_name: str):
         return error_response(str(e), 500)
 
 
+@admin_bp.route("/users/<user_name>/permissions", methods=["GET"])
+@login_required
+@check_admin_auth
+def get_user_permission_plural(user_name: str):
+    try:
+        res = RoleMgr.get_user_permission(user_name)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
 @admin_bp.route("/users/<user_name>/permission", methods=["GET"])
 @login_required
 @check_admin_auth
@@ -404,6 +428,345 @@ def get_user_permission(user_name: str):
     try:
         res = RoleMgr.get_user_permission(user_name)
         return success_response(res)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/roles/resource", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_role_resources():
+    try:
+        res = RoleMgr.list_resources()
+        return success_response(res)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/roles_with_permission", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_roles_with_permission():
+    try:
+        res = RoleMgr.list_roles_with_permission()
+        return success_response(res)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/roles/<role_name>/permissions", methods=["GET"])
+@login_required
+@check_admin_auth
+def get_role_permissions_plural(role_name: str):
+    try:
+        res = RoleMgr.get_role_permission(role_name)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_departments():
+    try:
+        res = DepartmentMgr.list_departments()
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments", methods=["POST"])
+@login_required
+@check_admin_auth
+def create_department():
+    try:
+        data = request.get_json() or {}
+        res = DepartmentMgr.create_department(current_user.id, data)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments/<department_id>", methods=["GET"])
+@login_required
+@check_admin_auth
+def get_department(department_id: str):
+    try:
+        departments = DepartmentMgr.list_departments()["departments"]
+        department = next((item for item in departments if item["id"] == department_id), None)
+        if not department:
+            return error_response("Department not found", 404)
+        return success_response(department)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments/<department_id>", methods=["PUT"])
+@login_required
+@check_admin_auth
+def update_department(department_id: str):
+    try:
+        data = request.get_json() or {}
+        res = DepartmentMgr.update_department(department_id, data)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments/<department_id>", methods=["DELETE"])
+@login_required
+@check_admin_auth
+def delete_department(department_id: str):
+    try:
+        res = DepartmentMgr.delete_department(department_id)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments/<department_id>/members", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_department_members(department_id: str):
+    try:
+        res = DepartmentMgr.list_members(department_id)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments/<department_id>/members", methods=["POST"])
+@login_required
+@check_admin_auth
+def add_department_members(department_id: str):
+    try:
+        data = request.get_json() or {}
+        res = DepartmentMgr.add_members(department_id, data.get("user_ids", []))
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/departments/<department_id>/members", methods=["DELETE"])
+@login_required
+@check_admin_auth
+def remove_department_members(department_id: str):
+    try:
+        data = request.get_json() or {}
+        res = DepartmentMgr.remove_members(department_id, data.get("user_ids", []))
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/users/<username>/department", methods=["GET"])
+@login_required
+@check_admin_auth
+def get_user_department(username: str):
+    try:
+        res = DepartmentMgr.get_user_department(username)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/users/<username>/department", methods=["PUT"])
+@login_required
+@check_admin_auth
+def set_user_department(username: str):
+    try:
+        data = request.get_json() or {}
+        res = DepartmentMgr.set_user_department(username, data.get("department_id") or "")
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/audit/logs", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_audit_logs():
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        page_size = max(1, min(int(request.args.get("page_size", 20)), 200))
+        email = request.args.get("email", "")
+        action = request.args.get("action", "")
+        resource_type = request.args.get("resource_type", "")
+        res = AuditMgr.list_logs(page, page_size, email, action, resource_type)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/security/settings", methods=["GET"])
+@login_required
+@check_admin_auth
+def get_security_settings():
+    try:
+        res = SecurityMgr.get_settings()
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/security/settings", methods=["PUT"])
+@login_required
+@check_admin_auth
+def update_security_settings():
+    try:
+        data = request.get_json() or {}
+        res = SecurityMgr.update_settings(data)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/sso", methods=["GET"])
+@login_required
+@check_admin_auth
+def get_sso_providers():
+    try:
+        res = SsoMgr.get_providers()
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/sso", methods=["PUT"])
+@login_required
+@check_admin_auth
+def update_sso_providers():
+    try:
+        data = request.get_json() or {}
+        res = SsoMgr.update_providers(data)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/sso/test", methods=["POST"])
+@login_required
+@check_admin_auth
+def test_sso_provider():
+    try:
+        data = request.get_json() or {}
+        res = SsoMgr.test_provider(data)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/whitelist", methods=["GET"])
+@login_required
+@check_admin_auth
+def list_whitelist():
+    try:
+        res = WhitelistMgr.list_whitelist()
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/whitelist/add", methods=["POST"])
+@login_required
+@check_admin_auth
+def add_whitelist_email():
+    try:
+        data = request.get_json() or {}
+        res = WhitelistMgr.add_email(current_user.id, data.get("email", ""))
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/whitelist/<int:whitelist_id>", methods=["PUT"])
+@login_required
+@check_admin_auth
+def update_whitelist_email(whitelist_id: int):
+    try:
+        data = request.get_json() or {}
+        res = WhitelistMgr.update_email(str(whitelist_id), data.get("email", ""))
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/whitelist/<email>", methods=["DELETE"])
+@login_required
+@check_admin_auth
+def delete_whitelist_email(email: str):
+    try:
+        res = WhitelistMgr.delete_email(email)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@admin_bp.route("/whitelist/batch", methods=["POST"])
+@login_required
+@check_admin_auth
+def batch_add_whitelist():
+    try:
+        emails = []
+        if request.files:
+            file = request.files.get("file")
+            if file:
+                from openpyxl import load_workbook
+
+                workbook = load_workbook(file, read_only=True, data_only=True)
+                sheet = workbook.active
+                for row in sheet.iter_rows(values_only=True):
+                    for cell in row:
+                        if isinstance(cell, str) and "@" in cell:
+                            emails.append(cell.strip())
+        else:
+            data = request.get_json() or {}
+            emails = data.get("emails", [])
+        res = WhitelistMgr.batch_add(current_user.id, emails)
+        return success_response(res)
+    except AdminException as e:
+        return error_response(e.message, e.code)
     except Exception as e:
         return error_response(str(e), 500)
 

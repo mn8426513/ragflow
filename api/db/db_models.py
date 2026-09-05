@@ -35,6 +35,7 @@ from peewee import (
     ProgrammingError,
     BigIntegerField,
     BooleanField,
+    AutoField,
     CharField,
     CompositeKey,
     DateTimeField,
@@ -1844,15 +1845,116 @@ class SystemSettings(DataBaseModel):
         db_table = "system_settings"
 
 
+class Department(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    name = CharField(max_length=128, null=False, index=True)
+    parent_id = CharField(max_length=32, null=True, default=None, index=True)
+    description = TextField(null=True)
+    created_by = CharField(max_length=32, null=False, index=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "department"
+
+
+class UserDepartment(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    user_id = CharField(max_length=32, null=False, index=True)
+    department_id = CharField(max_length=32, null=False, index=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "user_department"
+        indexes = ((("user_id", "department_id"), True),)
+
+
+class Role(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    role_name = CharField(max_length=64, null=False, index=True)
+    description = CharField(max_length=512, null=True)
+    role_type = CharField(max_length=16, null=False, default="custom", index=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "role"
+        indexes = ((("role_name", "status"), True),)
+
+
+class RolePermission(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    role_id = CharField(max_length=32, null=False, index=True)
+    resource = CharField(max_length=64, null=False, index=True)
+    action = CharField(max_length=32, null=False, index=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "role_permission"
+        indexes = ((("role_id", "resource", "action"), True),)
+
+
+class UserRole(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    user_id = CharField(max_length=32, null=False, index=True)
+    role_id = CharField(max_length=32, null=False, index=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "user_role"
+        indexes = ((("user_id", "role_id"), True),)
+
+
+class KnowledgebaseACL(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    kb_id = CharField(max_length=32, null=False, index=True)
+    subject_type = CharField(max_length=32, null=False, index=True)
+    subject_id = CharField(max_length=64, null=False, index=True)
+    permission = CharField(max_length=16, null=False, index=True)
+    created_by = CharField(max_length=32, null=False, index=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "knowledgebase_acl"
+        indexes = ((("kb_id", "subject_type", "subject_id", "permission"), True),)
+
+
+class AuditLog(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    user_id = CharField(max_length=32, null=True, index=True)
+    email = CharField(max_length=255, null=True, index=True)
+    action = CharField(max_length=128, null=False, index=True)
+    resource_type = CharField(max_length=64, null=True, index=True)
+    resource_id = CharField(max_length=64, null=True, index=True)
+    detail = TextField(null=True)
+    ip_address = CharField(max_length=64, null=True, index=True)
+    user_agent = CharField(max_length=512, null=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "audit_log"
+
+
+class Whitelist(DataBaseModel):
+    id = AutoField()
+    email = CharField(max_length=255, null=False, index=True)
+    created_by = CharField(max_length=32, null=False, index=True)
+    status = CharField(max_length=1, null=False, default="1", index=True)
+
+    class Meta:
+        db_table = "whitelist"
+        indexes = ((("email", "status"), True),)
+
+
 class TenantModelProvider(DataBaseModel):
     id = CharField(max_length=32, primary_key=True)
     provider_name = CharField(max_length=128, null=False, index=False, help_text="LLM provider name")
     tenant_id = CharField(max_length=32, null=False, index=True)
+    create_user_id = CharField(max_length=32, null=False, index=True)
 
     class Meta:
         db_table = "tenant_model_provider"
-        indexes = ((("tenant_id", "provider_name"), True),)
-
+        indexes = (
+            (("tenant_id", "provider_name", "create_user_id"), True),
+        )
 
 class TenantModelInstance(DataBaseModel):
     id = CharField(max_length=32, primary_key=True)

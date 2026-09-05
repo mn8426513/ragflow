@@ -26,6 +26,7 @@ from common.constants import ActiveEnum
 from api.db.services import UserService
 from api.db.joint_services.user_account_service import create_new_user, delete_user_data
 from api.db.services.canvas_service import UserCanvasService
+from api.db.services.enterprise_service import DepartmentService, RoleService
 from api.db.services.user_service import TenantService, UserTenantService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.system_settings_service import SystemSettingsService
@@ -40,17 +41,42 @@ from config import SERVICE_CONFIGS
 
 class UserMgr:
     @staticmethod
+    def _role_name_for_user(user_id: str) -> str:
+        try:
+            role_ids = RoleService.get_user_role_ids(user_id)
+            if not role_ids:
+                return ""
+            from api.db.db_models import Role
+
+            rows = Role.select(Role.role_name).where(Role.id.in_(role_ids), Role.status == "1")
+            names = [row.role_name for row in rows]
+            return names[0] if names else ""
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _department_names_for_user(user_id: str) -> list[str]:
+        try:
+            dept_ids = DepartmentService.get_department_ids_by_user(user_id)
+            return [d["name"] for d in DepartmentService.get_active_all() if d["id"] in dept_ids]
+        except Exception:
+            return []
+
+    @staticmethod
     def get_all_users():
         users = UserService.get_all_users()
         result = []
         for user in users:
             result.append(
                 {
+                    "id": user.id,
                     "email": user.email,
                     "nickname": user.nickname,
                     "create_date": user.create_date,
                     "is_active": user.is_active,
                     "is_superuser": user.is_superuser,
+                    "role": UserMgr._role_name_for_user(user.id),
+                    "department": UserMgr._department_names_for_user(user.id),
                 }
             )
         return result
@@ -74,6 +100,8 @@ class UserMgr:
                     "is_superuser": user.is_superuser,
                     "create_date": user.create_date,
                     "update_date": user.update_date,
+                    "role": UserMgr._role_name_for_user(user.id),
+                    "department": UserMgr._department_names_for_user(user.id),
                 }
             )
         return result
@@ -94,7 +122,12 @@ class UserMgr:
             "login_channel": "password",
             "is_superuser": role == "admin",
         }
-        return create_new_user(user_info_dict)
+        result = create_new_user(user_info_dict)
+        if result.get("success") and role:
+            user_id = result["user_info"]["id"]
+            RoleService.ensure_default_roles()
+            RoleService.set_user_role(user_id, role)
+        return result
 
     @staticmethod
     def delete_user(username):

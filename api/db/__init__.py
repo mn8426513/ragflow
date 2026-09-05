@@ -30,6 +30,25 @@ class UserTenantRole(StrEnum):
 class TenantPermission(StrEnum):
     ME = "me"
     TEAM = "team"
+    ACL = "acl"
+
+
+class AclSubjectType(StrEnum):
+    USER = "user"
+    DEPARTMENT = "department"
+    ROLE = "role"
+    TEAM = "team"
+
+
+class KbPermission(StrEnum):
+    READ = "read"
+    WRITE = "write"
+    MANAGE = "manage"
+
+
+class RoleType(StrEnum):
+    BUILTIN = "builtin"
+    CUSTOM = "custom"
 
 
 class SerializedType(IntEnum):

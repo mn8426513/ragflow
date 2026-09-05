@@ -25,8 +25,8 @@ from api.apps import current_user, login_required
 from api.constants import DATASET_NAME_LIMIT
 from api.db.db_models import DB
 from api.db.services import duplicate_name
-from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.search_service import SearchService
+from api.common.rbac import can_read_dataset, can_write_search, user_has_permission
 from api.db.services.user_service import TenantService, UserTenantService
 from common.misc_utils import get_uuid
 from common.constants import RetCode, StatusEnum
@@ -44,6 +44,8 @@ def _full_text_weight(vector_similarity_weight):
 @login_required
 @validate_request("name")
 async def create():
+    if not user_has_permission(current_user.id, "search", "write"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     req = await get_request_json()
     search_name = req["name"]
     description = req.get("description", "")
@@ -77,6 +79,8 @@ async def create():
 @manager.route("/searches", methods=["GET"])  # noqa: F821
 @login_required
 def list_searches():
+    if not user_has_permission(current_user.id, "search", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     keywords = request.args.get("keywords", "")
     page_number = validate_rest_api_page(request.args.get("page", DEFAULT_PAGE))
     items_per_page = validate_rest_api_page_size(request.args.get("page_size", DEFAULT_PAGE_SIZE))
@@ -107,6 +111,8 @@ def list_searches():
 @manager.route("/searches/<search_id>", methods=["GET"])  # noqa: F821
 @login_required
 def detail(search_id):
+    if not user_has_permission(current_user.id, "search", "read"):
+        return get_json_result(data=False, message="no authorization", code=RetCode.OPERATING_ERROR)
     try:
         tenants = UserTenantService.query(user_id=current_user.id)
         for tenant in tenants:
@@ -140,7 +146,7 @@ async def update(search_id):
     if not e:
         return get_data_error_result(message="Authorized identity.")
 
-    if not SearchService.accessible4deletion(search_id, current_user.id):
+    if not can_write_search(current_user.id, search_id):
         return get_json_result(data=False, message="no authorization", code=RetCode.AUTHENTICATION_ERROR)
 
     try:
@@ -185,7 +191,7 @@ async def update(search_id):
 @manager.route("/searches/<search_id>", methods=["DELETE"])  # noqa: F821
 @login_required
 def delete_search(search_id):
-    if not SearchService.accessible4deletion(search_id, current_user.id):
+    if not can_write_search(current_user.id, search_id):
         return get_json_result(data=False, message="no authorization", code=RetCode.AUTHENTICATION_ERROR)
 
     try:
@@ -201,7 +207,7 @@ def delete_search(search_id):
 @login_required
 @validate_request("question")
 async def completion(search_id):
-    if not SearchService.accessible4deletion(search_id, current_user.id):
+    if not user_has_permission(current_user.id, "search", "read") and not SearchService.accessible4deletion(search_id, current_user.id):
         return get_json_result(
             data=False,
             message="no authorization",
@@ -228,8 +234,8 @@ async def completion(search_id):
 
     # check if the kb_ids is accessible for this user
     for kb_id in kb_ids:
-        if not KnowledgebaseService.accessible(kb_id=kb_id, user_id=uid):
-            return get_data_error_result(message=f"You don't own the dataset {kb_id}")
+        if not can_read_dataset(uid, kb_id):
+            return get_data_error_result(message=f"You don't have access to the dataset {kb_id}")
 
     async def stream():
         nonlocal req, uid, kb_ids, search_config

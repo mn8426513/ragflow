@@ -93,6 +93,9 @@ export enum Routes {
   AdminWhitelist = `${Admin}/whitelist`,
   AdminRoles = `${Admin}/roles`,
   AdminMonitoring = `${Admin}/monitoring`,
+  AdminDepartments = `${Admin}/departments`,
+  AdminAuditLogs = `${Admin}/audit-logs`,
+  AdminSecuritySettings = `${Admin}/security`,
 }
 
 const defaultRouteFallback = (
@@ -433,6 +436,18 @@ const routeConfigOptions = [
                     {
                       path: Routes.AdminMonitoring,
                       Component: () => import('@/pages/admin/monitoring'),
+                    },
+                    {
+                      path: Routes.AdminDepartments,
+                      Component: () => import('@/pages/admin/departments'),
+                    },
+                    {
+                      path: Routes.AdminAuditLogs,
+                      Component: () => import('@/pages/admin/audit-logs'),
+                    },
+                    {
+                      path: Routes.AdminSecuritySettings,
+                      Component: () => import('@/pages/admin/security'),
                     },
                   ]
                 : []),

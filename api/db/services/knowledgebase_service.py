@@ -18,8 +18,9 @@ from datetime import datetime
 from peewee import JOIN, fn
 
 from api.constants import DATASET_NAME_LIMIT
-from api.db import TenantPermission
+from api.db import KbPermission, TenantPermission
 from api.db.db_models import DB, Document, Knowledgebase, User, UserCanvas
+from api.db.services.enterprise_service import KnowledgebaseACLService
 from api.db.joint_services.tenant_model_service import get_composite_model_name_by_ids
 from api.db.services import duplicate_name
 from api.db.services.common_service import CommonService
@@ -115,7 +116,7 @@ class KnowledgebaseService(CommonService):
     model = Knowledgebase
 
     @classmethod
-    def _visibility_and_status_filter(cls, joined_tenant_ids, user_id):
+    def _visibility_and_status_filter(cls, joined_tenant_ids, user_id, acl_ids=None):
         """
         Build a Peewee filter expression representing knowledgebase visibility
         for a given user, combined with a valid-status constraint.
@@ -123,9 +124,13 @@ class KnowledgebaseService(CommonService):
         Visibility rules:
         - Team KBs (`permission == TenantPermission.TEAM`) owned by any tenant in `joined_tenant_ids`
         - KBs owned by the current user (`tenant_id == user_id`)
+        - KBs granted to the user through enterprise ACL entries (`acl_ids`)
         Always constrained to `StatusEnum.VALID`.
         """
-        return ((cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission == TenantPermission.TEAM.value)) | (cls.model.tenant_id == user_id)) & (cls.model.status == StatusEnum.VALID.value)
+        base = (cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission == TenantPermission.TEAM.value)) | (cls.model.tenant_id == user_id)
+        if acl_ids:
+            base = base | (cls.model.id.in_(acl_ids))
+        return base & (cls.model.status == StatusEnum.VALID.value)
 
     @classmethod
     @DB.connection_context()
@@ -156,9 +161,9 @@ class KnowledgebaseService(CommonService):
         # Check if a dataset can be deleted by a user
         docs = cls.model.select(cls.model.id).where(cls.model.id == kb_id, cls.model.created_by == user_id).paginate(0, 1)
         docs = docs.dicts()
-        if not docs:
-            return False
-        return True
+        if docs:
+            return True
+        return KnowledgebaseACLService.has_permission(kb_id, user_id, KbPermission.MANAGE.value)
 
     @classmethod
     @DB.connection_context()
@@ -244,7 +249,7 @@ class KnowledgebaseService(CommonService):
                 cls.model.select(*fields)
                 .join(User, on=(cls.model.tenant_id == User.id))
                 .where(
-                    cls._visibility_and_status_filter(joined_tenant_ids, user_id),
+                    cls._visibility_and_status_filter(joined_tenant_ids, user_id, KnowledgebaseACLService.accessible_kb_ids(user_id)),
                     fn.LOWER(cls.model.name).contains(keywords.lower()),
                 )
             )
@@ -253,7 +258,7 @@ class KnowledgebaseService(CommonService):
                 cls.model.select(*fields)
                 .join(User, on=(cls.model.tenant_id == User.id))
                 .where(
-                    cls._visibility_and_status_filter(joined_tenant_ids, user_id),
+                    cls._visibility_and_status_filter(joined_tenant_ids, user_id, KnowledgebaseACLService.accessible_kb_ids(user_id)),
                 )
             )
         if parser_id:
@@ -287,7 +292,7 @@ class KnowledgebaseService(CommonService):
             cls.model.update_date,
         ]
         # find team kb and owned kb
-        kbs = cls.model.select(*fields).where(cls._visibility_and_status_filter(tenant_ids, user_id))
+        kbs = cls.model.select(*fields).where(cls._visibility_and_status_filter(tenant_ids, user_id, KnowledgebaseACLService.accessible_kb_ids(user_id)))
         # sort by create_time asc
         kbs = kbs.order_by(cls.model.create_time.asc())
         # maybe cause slow query by deep paginate, optimize later.
@@ -531,7 +536,7 @@ class KnowledgebaseService(CommonService):
         if parser_id:
             kbs = kbs.where(cls.model.parser_id == parser_id)
 
-        kbs = kbs.where(cls._visibility_and_status_filter(joined_tenant_ids, user_id))
+        kbs = kbs.where(cls._visibility_and_status_filter(joined_tenant_ids, user_id, KnowledgebaseACLService.accessible_kb_ids(user_id)))
 
         if desc:
             kbs = kbs.order_by(cls.model.getter_by(orderby).desc())
@@ -546,7 +551,7 @@ class KnowledgebaseService(CommonService):
     @classmethod
     @DB.connection_context()
     def get_accessible_ids(cls, joined_tenant_ids, user_id, ids):
-        kbs = cls.model.select(cls.model.id).where(cls.model.id.in_(ids), cls._visibility_and_status_filter(joined_tenant_ids, user_id))
+        kbs = cls.model.select(cls.model.id).where(cls.model.id.in_(ids), cls._visibility_and_status_filter(joined_tenant_ids, user_id, KnowledgebaseACLService.accessible_kb_ids(user_id)))
         return {kb.id for kb in kbs}
 
     @classmethod
@@ -559,7 +564,7 @@ class KnowledgebaseService(CommonService):
                 fn.COUNT(cls.model.id).alias("count"),
             )
             .join(User, on=(cls.model.tenant_id == User.id))
-            .where(cls._visibility_and_status_filter(joined_tenant_ids, user_id))
+            .where(cls._visibility_and_status_filter(joined_tenant_ids, user_id, KnowledgebaseACLService.accessible_kb_ids(user_id)))
             .group_by(cls.model.tenant_id, User.nickname)
         )
         return list(owners.dicts())
@@ -584,10 +589,12 @@ class KnowledgebaseService(CommonService):
             return True
 
         if kb.permission != TenantPermission.TEAM.value:
-            return False
+            return KnowledgebaseACLService.has_permission(kb_id, user_id, KbPermission.READ.value)
 
         joined_tenants = TenantService.get_joined_tenants_by_user_id(user_id)
-        return any(tenant["tenant_id"] == kb.tenant_id for tenant in joined_tenants)
+        if any(tenant["tenant_id"] == kb.tenant_id for tenant in joined_tenants):
+            return True
+        return KnowledgebaseACLService.has_permission(kb_id, user_id, KbPermission.READ.value)
 
     @classmethod
     @DB.connection_context()

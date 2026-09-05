@@ -519,6 +519,20 @@ export default {
   adminGetSandboxConfig: `${restAPIv1}/admin/sandbox/config`,
   adminSetSandboxConfig: `${restAPIv1}/admin/sandbox/config`,
   adminTestSandboxConnection: `${restAPIv1}/admin/sandbox/test`,
+  adminDepartments: `${restAPIv1}/admin/departments`,
+  adminDepartment: (id: string) => `${restAPIv1}/admin/departments/${id}`,
+  adminDepartmentMembers: (id: string) =>
+    `${restAPIv1}/admin/departments/${id}/members`,
+  adminAuditLogs: `${restAPIv1}/admin/audit/logs`,
+  adminSecuritySettings: `${restAPIv1}/admin/security/settings`,
+  adminSso: `${restAPIv1}/admin/sso`,
+  adminSsoTest: `${restAPIv1}/admin/sso/test`,
+  adminUserDepartment: (username: string) =>
+    `${restAPIv1}/admin/users/${username}/department`,
+  enterpriseAccessTargets: `${restAPIv1}/enterprise/access/targets`,
+  enterpriseDatasetPermissions: (id: string) =>
+    `${restAPIv1}/enterprise/datasets/${id}/permissions`,
+  enterpriseWatermark: `${restAPIv1}/enterprise/security/watermark`,
 
   // Skill spaces
   skillSpaces: `${restAPIv1}/skills/spaces`,

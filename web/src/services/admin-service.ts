@@ -156,6 +156,14 @@ const {
   adminGetSandboxConfig,
   adminSetSandboxConfig,
   adminTestSandboxConnection,
+  adminDepartments,
+  adminDepartment,
+  adminDepartmentMembers,
+  adminAuditLogs,
+  adminSecuritySettings,
+  adminSso,
+  adminSsoTest,
+  adminUserDepartment,
 } = api;
 
 type ResponseData<D = NonNullable<unknown>> = {
@@ -334,3 +342,72 @@ export const testSandboxConnection = (params: {
     provider_type: params.providerType,
     config: params.config,
   });
+
+// Enterprise: departments
+export const listDepartments = () =>
+  request.get<ResponseData<{ departments: AdminService.Department[]; total: number }>>(
+    adminDepartments,
+  );
+export const createDepartment = (params: {
+  name: string;
+  parent_id?: string;
+  description?: string;
+}) => request.post<ResponseData<AdminService.Department>>(adminDepartments, params);
+export const updateDepartment = (
+  id: string,
+  params: { name?: string; parent_id?: string; description?: string },
+) => request.put<ResponseData<AdminService.Department>>(adminDepartment(id), params);
+export const deleteDepartment = (id: string) =>
+  request.delete<ResponseData<never>>(adminDepartment(id));
+export const listDepartmentMembers = (id: string) =>
+  request.get<ResponseData<{ members: AdminService.DepartmentMember[]; total: number }>>(
+    adminDepartmentMembers(id),
+  );
+export const addDepartmentMembers = (id: string, userIds: string[]) =>
+  request.post<ResponseData<never>>(adminDepartmentMembers(id), { user_ids: userIds });
+export const removeDepartmentMembers = (id: string, userIds: string[]) =>
+  request.delete<ResponseData<never>>(adminDepartmentMembers(id), {
+    data: { user_ids: userIds },
+  });
+export const getUserDepartment = (username: string) =>
+  request.get<ResponseData<{ departments: AdminService.Department[] }>>(
+    adminUserDepartment(username),
+  );
+export const setUserDepartment = (username: string, departmentId: string) =>
+  request.put<ResponseData<never>>(adminUserDepartment(username), {
+    department_id: departmentId,
+  });
+
+// Enterprise: audit logs
+export const listAuditLogs = (params: {
+  page?: number;
+  page_size?: number;
+  email?: string;
+  action?: string;
+  resource_type?: string;
+}) =>
+  request.get<
+    ResponseData<{
+      logs: AdminService.AuditLog[];
+      total: number;
+    }>
+  >(adminAuditLogs, { params });
+
+// Enterprise: security settings
+export const getSecuritySettings = () =>
+  request.get<ResponseData<AdminService.SecuritySettings>>(adminSecuritySettings);
+export const updateSecuritySettings = (patch: Partial<AdminService.SecuritySettings>) =>
+  request.put<ResponseData<AdminService.SecuritySettings>>(adminSecuritySettings, patch);
+
+// Enterprise: SSO providers
+export const getSsoProviders = () =>
+  request.get<ResponseData<{ providers: AdminService.SsoProvider[] }>>(adminSso);
+export const updateSsoProviders = (providers: AdminService.SsoProvider[]) =>
+  request.put<ResponseData<{ providers: AdminService.SsoProvider[] }>>(adminSso, {
+    providers,
+  });
+export const testSsoProvider = (provider: Partial<AdminService.SsoProvider>) =>
+  request.post<ResponseData<{ ok: boolean; [key: string]: unknown }>>(
+    adminSsoTest,
+    provider,
+  );

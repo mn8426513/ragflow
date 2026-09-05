@@ -9,22 +9,22 @@ admin:
 mysql:
   name: 'rag_flow'
   user: 'root'
-  password: 'infini_rag_flow'
-  host: 'localhost'
+  password: 'ragflow@123'
+  host: 'mysql'
   port: 3306
   max_connections: 900
   stale_timeout: 300
   max_allowed_packet: 1073741824
 minio:
   user: 'rag_flow'
-  password: 'infini_rag_flow'
-  host: 'localhost:9000'
+  password: 'ragflow@123'
+  host: 'minio:9000'
   bucket: ''
   prefix_path: ''
 es:
-  hosts: 'http://localhost:1200'
+  hosts: 'http://es01:1200'
   username: 'elastic'
-  password: 'infini_rag_flow'
+  password: 'ragflow@123'
 os:
   hosts: 'http://localhost:1201'
   username: 'admin'
@@ -34,7 +34,7 @@ os:
   # hybrid_search_pipeline: 'ragflow_hybrid_pipeline'
   # hybrid_search_weights: [0.5, 0.5]   # [text/BM25 leg, vector/KNN leg]
 infinity:
-  uri: 'localhost:23817'
+  uri: 'infinity:23817'
   postgres_port: 5432
   db_name: 'default_db'
 oceanbase:
@@ -48,6 +48,10 @@ oceanbase:
 redis:
   db: 1
   username: ''
+  password: 'ragflow@123'
+  host: 'redis:6379'
+task_executor:
+  message_queue_type: 'redis'
   password: 'infini_rag_flow'
   host: 'localhost:6379'
 nats:

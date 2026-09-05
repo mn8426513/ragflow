@@ -22,6 +22,7 @@ import re
 from api.db.db_models import Connector2Kb, Document, File, SyncLogs
 from api.db.joint_services.tenant_model_service import get_composite_model_name_by_ids, resolve_model_config, resolve_model_id
 from api.db.services.connector_service import Connector2KbService, SyncLogsService
+from api.common.rbac import can_manage_dataset, can_read_dataset, can_write_dataset, user_has_permission
 from api.db.services.document_service import DocumentService, queue_raptor_o_graphrag_tasks
 from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
@@ -161,8 +162,8 @@ def _delete_datasets_sync(tenant_id: str, ids: list = None, delete_all: bool = F
 
     error_kb_ids = []
     for kb_id in ids:
-        kb = KnowledgebaseService.get_or_none(id=kb_id, tenant_id=tenant_id)
-        if kb is None:
+        kb = KnowledgebaseService.get_or_none(id=kb_id)
+        if kb is None or not can_write_dataset(tenant_id, kb_id):
             error_kb_ids.append(kb_id)
             continue
         kb_id_instance_pairs.append((kb_id, kb))
@@ -312,9 +313,8 @@ async def update_dataset(tenant_id: str, dataset_id: str, req: dict):
     if not req:
         return False, "no properties were modified"
 
-    kbs = KnowledgebaseService.get_kb_by_id(dataset_id, tenant_id)
-    if not kbs:
-        return False, f"User '{tenant_id}' lacks permission for dataset '{dataset_id}'"
+    if not can_write_dataset(tenant_id, dataset_id):
+        return False, f"User '{tenant_id}' lacks write permission for dataset '{dataset_id}'"
 
     kb = KnowledgebaseService.get_or_none(id=dataset_id)
     if kb is None:
@@ -407,6 +407,10 @@ async def update_dataset(tenant_id: str, dataset_id: str, req: dict):
             from rag.nlp import search
 
             settings.docStoreConn.update({"exists": PAGERANK_FLD}, {"remove": PAGERANK_FLD}, search.index_name(kb.tenant_id), kb.id)
+    if "permission" in req and req.get("permission") != kb.permission:
+        if not can_manage_dataset(tenant_id, dataset_id):
+            return False, "no share authorization"
+
     req.pop("parse_type", None)
 
     if not KnowledgebaseService.update_by_id(kb.id, req):
@@ -434,6 +438,9 @@ def list_datasets(tenant_id: str, args: dict):
     :param args: query arguments
     :return: (success, result) or (success, error_message)
     """
+    if not user_has_permission(tenant_id, "dataset", "read"):
+        return False, "no authorization"
+
     kb_id = args.get("id")
     kb_ids = args.get("ids")
     name = args.get("name")
@@ -1069,9 +1076,9 @@ async def search(dataset_id: str, tenant_id: str, req: dict):
     knn_num_candidates = int(req.get("knn_num_candidates", 2048))
     langs = req.get("cross_languages", [])
 
-    if not KnowledgebaseService.accessible(dataset_id, tenant_id):
+    if not can_read_dataset(tenant_id, dataset_id):
         logging.warning("search access denied: dataset=%s tenant=%s", dataset_id, tenant_id)
-        return False, "Only owner of dataset authorized for this operation."
+        return False, "Only authorized users can access this dataset."
 
     e, kb = KnowledgebaseService.get_by_id(dataset_id)
     if not e:
@@ -1463,9 +1470,9 @@ async def search_datasets(tenant_id: str, req: dict):
 
     # Access check for all datasets
     for kb_id in kb_ids:
-        if not KnowledgebaseService.accessible(kb_id, tenant_id):
+        if not can_read_dataset(tenant_id, kb_id):
             logging.warning("search_datasets access denied: dataset=%s tenant=%s", kb_id, tenant_id)
-            return False, f"Only owner of dataset {kb_id} authorized for this operation."
+            return False, f"Only authorized users can access dataset {kb_id}."
 
     kbs = KnowledgebaseService.get_by_ids(kb_ids)
     if not kbs:
